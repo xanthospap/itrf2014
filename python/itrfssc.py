@@ -27,11 +27,11 @@ def read_header(fstream):
     line = fstream.readline()
     l    = line.split()
     assert( len(l) == 8 )
-    assert( l[1] == 'STATION' and
+    assert( l[1] == 'STATION'   and
             l[2] == 'POSITIONS' and
-            l[3] == 'AT' and
-            l[4] == 'EPOCH' and
-            l[6] == 'AND' and
+            l[3] == 'AT'        and
+            l[4] == 'EPOCH'     and
+            l[6] == 'AND'       and
             l[7] == 'VELOCITIES' )
     refframe = l[0]
     refepoch = int(float(l[5]))

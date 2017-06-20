@@ -112,6 +112,8 @@ def compute_psd(psd_file, t=datetime.datetime.now(), station=None, domes=None):
         deformation parametrs, compute the PSD correction per [e,n,u] component
         for a given station at a given time t. The station can be described by
         either passing in its 4-char id, or its DOMES number.
+        If the station (or domes) is not found in the file, then the tuple
+        <name_give, domes_given, 0, 0, 0> is returned.
 
         Parameters:
         -----------
@@ -127,8 +129,10 @@ def compute_psd(psd_file, t=datetime.datetime.now(), station=None, domes=None):
 
         Returns:
         --------
-        tuple (of size 3)
-            Each tuple element is the (total) PSD in [e,n,u] components
+        tuple (of size 5)
+            First two elements are the station name and domes as written in the
+            PSD file if the station is found; else they are the values provided.
+            The next 3 tuple elements are the (total) PSD in [e,n,u] components
             respectively in mm.
 
         Note:
@@ -138,6 +142,9 @@ def compute_psd(psd_file, t=datetime.datetime.now(), station=None, domes=None):
     """
     de = dn = du = 0e0
     num_of_psd   = 0
+    sta_def      = ' '*4 if not station else station
+    dms_def      = ' '*9 if not domes else domes
+    found        = False
     assert( not station or not domes )
     if station: station = station.upper()
     with open(psd_file) as fin:
@@ -151,9 +158,12 @@ def compute_psd(psd_file, t=datetime.datetime.now(), station=None, domes=None):
                 dn += parametric(mn, dyr, *pn)
                 du += parametric(mu, dyr, *pu)
                 num_of_psd += 1
+                found   = True
+                sta_def = sta
+                dms_def = dms
             line = fin.readline()
         # print 'Number of individuals PSDs applied: {}'.format(num_of_psd)
-        return de, dn, du
+        return sta_def, dms_def, de, dn, du
 
 def xyz2llh(x, y, z, a=6378137e0, f=0.003352810681183637418):
     """ Cartesian to ellispoidal coordinates, based on
@@ -244,4 +254,6 @@ if __name__ == "__main__":
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='11401M001')
     print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='COCO')
+    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='PDEL')
     print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))

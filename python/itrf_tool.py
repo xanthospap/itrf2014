@@ -1,8 +1,9 @@
 #! /usr/bin/python
 
+from __future__ import print_function
 import sys, datetime, argparse
 sys.path.append('.')
-from itrfssc import itrf_extrapolate
+from itrfssc import itrf_extrapolate, read_header
 from compute_psd import compute_psd, enu2xyz
 
 ##  set the cmd parser
@@ -35,20 +36,22 @@ parser.add_argument('-m', '--domes',
 )
 parser.add_argument('-c', '--ssc',
     action   = 'store',
-    required = True,
+    required = False,
     help     = 'A SSC ascci file to extract coordinates and velocities from. These'
     ' files are normaly accessible at: http://itrf.ign.fr/ITRF_solutions/',
     metavar  = 'SSC_FILE',
-    dest     = 'ssc_file'
+    dest     = 'ssc_file',
+    default  = None
 )
 parser.add_argument('-p', '--psd',
     action   = 'store',
-    required = True,
+    required = False,
     help     = 'A PSD ascci file to extract Post-Seismic-Deformation models and'
     'parameters from. These files are normaly accessible at: '
     'ftp://itrf.ign.fr/pub/itrf/itrf2014/ITRF2014-psd-gnss.dat',
     metavar  = 'PSD_FILE',
-    dest     = 'psd_file'
+    dest     = 'psd_file',
+    default  = None
 )
 parser.add_argument('-y', '--year',
     action   = 'store',
@@ -66,33 +69,79 @@ parser.add_argument('-d', '--doy',
     metavar  = 'DOY',
     dest     = 'doy'
 )
+parser.add_argument('--psd-only',
+    action   = 'store_true',
+    help     = 'If this switch is on, then only the PSD corrections are computed'
+    ' (per component); no extrapolation of coordinates is performed',
+    dest     = 'psd_only',
+    default  = False
+)
 
 # parse cmd
 args = parser.parse_args()
+
+# make sure the user didn't mess up the args ...
+if args.psd_only and not args.psd_file:
+    print('ERROR. If you need the PSD values, you need to supply a PSD file!', file=sys.stderr)
+    sys.exit(1)
+if not args.psd_only and not args.ssc_file:
+    print('ERROR. You need to supply an SSC file for coordinate extrapolation.', file=sys.stderr)
+    sys.exit(1)
 
 # convert the give year-doy to a datetime.datetime instance
 t = datetime.datetime.strptime('{}-{}'.format(args.year, args.doy), '%Y-%j')
 
 # for all stations in station list, extrapolate coordinates
-station=args.stations
-results = itrf_extrapolate(ssc_file=args.ssc_file, t=t, station=args.stations)
+station =  args.stations
+results = []
+
+# easy case: We have a PSD file but no SSC; Only compute PSD in [e,n,u]
+if args.psd_only and not args.ssc_file:
+    for s in args.stations:
+        sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
+        results.append([sta, dms, e, n, u])
+    for d in args.domes:
+        sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
+        results.append([sta, dms, e, n, u])
+    print('NAME   DOMES   East(mm) North(m)  Up(m)        EPOCH')
+    print('---- --------- -------- -------- -------- ------------------')
+    for item in results:
+        print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5}'.format(*(item+[t])))
+    sys.exit(0)
+
+# First step is to extrapolate coordinates
+results =  itrf_extrapolate(ssc_file=args.ssc_file, t=t, station=args.stations)
 results += itrf_extrapolate(ssc_file=args.ssc_file, t=t, domes=args.domes)
 
-# find PSD corrections
-for idx, item in enumerate(results):
-    #try:
-    e, n, u = compute_psd(args.psd_file, t=t, station=item['station'])
-    e, n, u = [ i/1000e0 for i in [e, n, u] ] ## mm to m
-    print('#Found PSD for station {}, [e, n, u] = [{}, {}, {}]'.format(item['station'], e, n, u))
-    dx, dy, dz = enu2xyz(e, n, u, item['x'], item['y'], item['z']) ## local to cartesian
-    print('#In cartesian that is [x, y, z] = [{}, {}, {}]'.format(dx, dy, dz))
-    print('#Adding psd to station {} {} {} {}'.format(item['station'], item['x'], item['y'], item['z']))
-    results[idx]['x'] += dx
-    results[idx]['y'] += dy
-    results[idx]['z'] += dz
-    print('#New coordinates of station {} {} {} {}'.format(item['station'], item['x']+dx, item['y']+dy, item['z']+dz))
-    #except:
-    #    pass
+# find PSD corrections (if needed); if we want extra PSD info, we are going to
+#+ strore it in a new list
+if args.psd_file:
+    if args.psd_only: psd_info = []
+    for idx, item in enumerate(results):
+        _, _, e, n, u = compute_psd(args.psd_file, t=t, station=item['station'])
+        e, n, u = [ i/1000e0 for i in [e, n, u] ] ## mm to m
+        #print('#Found PSD for station {}, [e, n, u] = [{}, {}, {}]'.format(item['station'], e, n, u))
+        dx, dy, dz = enu2xyz(e, n, u, item['x'], item['y'], item['z']) ## local to cartesian
+        #print('#In cartesian that is [x, y, z] = [{}, {}, {}]'.format(dx, dy, dz))
+        #print('#Adding psd to station {} {} {} {}'.format(item['station'], item['x'], item['y'], item['z']))
+        results[idx]['x'] += dx
+        results[idx]['y'] += dy
+        results[idx]['z'] += dz
+        if args.psd_only: psd_info.append({'sta':item['station'], 'dms':item['domes'],'e':e*1e3, 'n':n*1e3, 'u':u*1e3, 'dx':dx*1e3, 'dy':dy*1e3, 'dz':dz*1e3})
+        #print('#New coordinates of station {} {} {} {}'.format(item['station'], item['x']+dx, item['y']+dy, item['z']+dz))
 
-for idx, item in enumerate(results):
-    print('{0} {1} {2:15.5f} {3:15.5f} {4:15.5f}'.format(item['station'], item['domes'], item['x'], item['y'], item['z']))
+# write results (depending on if we only want the PSDs or not)
+with open(args.ssc_file) as fin: frame, reft = read_header(fin)
+print('Reference Frame: {}, Reference Epoch {}'.format(frame, reft))
+if not args.psd_only:
+    print('NAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH')
+    print('---- --------- --------------- --------------- --------------- ------------------')
+    for idx, item in enumerate(results):
+        print('{0} {1} {2:15.5f} {3:15.5f} {4:15.5f} {5}'.format(item['station'], item['domes'], item['x'], item['y'], item['z'], t))
+else:
+    print('NAME   DOMES   East(mm) North(m)  Up(m)     X(mm)    Y(mm)     Z(mm)      EPOCH')
+    print('---- --------- -------- -------- -------- -------- -------- -------- ------------------')
+    for idx, item in enumerate(psd_info):
+        print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5:8.2f} {6:8.2f} {7:8.2f} {8}'.format(item['sta'], item['dms'], item['e'], item['n'], item['u'], item['dx'], item['dy'], item['dz'], t))
+sys.exit(0)
+
