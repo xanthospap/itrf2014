@@ -177,7 +177,7 @@ def xyz2llh(x, y, z, a=6378137e0, f=0.003352810681183637418):
     else:
         lon = .0e0;
     # Ensure that Z-coordinate is unsigned.
-    absz = math.abs(z)
+    absz = abs(z)
     if p2 > aeps2: # Continue unless at the poles
         # Compute distance from polar axis.
         p   = math.sqrt(p2)
@@ -217,25 +217,31 @@ def enu2xyz(e, n, u, x, y, z):
     """ Transform a [e,n,u] vector (i.e.  local East, North, Up coordinates)
         to cartesian [X,Y,Z].
         Reference: http://www.navipedia.net/index.php/Transformations_between_ECEF_and_ENU_coordinates
+        Parameters:
+        -----------
+        Returns:
+        -----------
+        list (of floats witsh size = 3)
+            the list is: [x, y, z]
     """
     lat, lon, hgt = xyz2llh(x,y,z)
     sl = np.sin(lon)
     cl = np.cos(lon)
-    sf = np.sin(phi)
-    cf = np.cos(phi)
+    sf = np.sin(lat)
+    cf = np.cos(lat)
     R   = np.matrix([[-sl, -cl*sf, cl*cf],
                      [cl,  -sl*sf, sl*cf],
                      [0e0,  cf,    sf]])
-    enu = np.matrix([e],[n],[u])
-    return (R * enu).tolist()
+    enu = np.matrix([[e],[n],[u]])
+    return [item for sublist in (R * enu).tolist() for item in sublist]
 
 ## Example usage
 if __name__ == "__main__":
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='ANKR')
-    print 'PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du)
+    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='20805M002')
-    print 'PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du)
+    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='11401M001')
-    print 'PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du)
+    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
     de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='COCO')
-    print 'PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du)
+    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))

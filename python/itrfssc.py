@@ -75,8 +75,8 @@ def read_next_record(line, fstream):
         stop_col = line[36:].index(':') - 2 + 36
         dstrs = line[stop_col:].split()
         assert( len(dstrs) == 2 )
-        if dstrs[0] != '00:000:00000': tstart = time_str2dt(dstrs[0]) 
-        if dstrs[1].strip() != '00:000:00000': stop  = time_str2dt(dstrs[1])
+        if dstrs[0].strip() != '00:000:00000': tstart = time_str2dt(dstrs[0]) 
+        if dstrs[1].strip() != '00:000:00000': tstop  = time_str2dt(dstrs[1])
         stop_col -= 4
     except:
         stop_col = len(line) - 1
@@ -114,10 +114,10 @@ def extrapolate(dtq, x0, vx):
     """
     return x0 + vx*dtq
 
-def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=None, domes=None):
-    """ Given an (ITRF) .SSC file, compute the coordinates of a specified station
-        at the given epoch (t).The station can be described by either passing
-        in its 4-char id, or its DOMES number.
+def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=[], domes=[]):
+    """ Given an (ITRF) .SSC file, compute the coordinates of a station list
+        at the given epoch (t).The stations can be described by either passing
+        in their 4-char id, or their DOMES numbers.
 
         Parameters:
         -----------
@@ -126,38 +126,41 @@ def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=None, domes=No
             http://itrf.ign.fr/ITRF_solutions/2014/doc/ITRF2014_GNSS.SSC.txt)
         t: datetime.datetime
             The time we want the coordinates at.
-        station: string
-            The name of the station (4-char id)
-        domes:
-            The domes number.
+        station: list of strings
+            The names of the stations (4-char id)
+        domes: list of strings
+            The domes numbers.
 
         Returns:
         --------
-        tuple (of size 3)
-            Each tuple element is the coordinate in [x,y,z] components
-            respectively in m.
+        a list of dictionaries.
+            Each entry of the returned list, is a dictionary of type:
+            {'station':, 'domes': , 'x':, 'y':, 'z':}, where x, y and z are 
+            the extrapolated coordinates in m.
+            Stations which were not matched are not included in the list.
 
     """ 
-    assert( not station or not domes )
-    if station: station = station.upper()
+    results = []
+    if station: station = [ x.upper() for x in station ]
     with open(ssc_file) as fin:
         frame, refepoch = read_header(fin)
         line = fin.readline()
         while line:
             dic = read_next_record(line, fin)
-            if (not station and domes == dic['domes']) or (not domes and station == dic['id']):
+            if dic['domes'] in domes or dic['id'] in station:
                 if t >= dic['start'] and t < dic['stop']:
                     dt  = t - dic['start']
                     dyr = (dt.days + dt.seconds/86400e0)/365.25
                     x   = extrapolate(dyr, dic['x'], dic['vx'])
                     y   = extrapolate(dyr, dic['y'], dic['vy'])
                     z   = extrapolate(dyr, dic['z'], dic['vz'])
-                    return x, y, z
+                    results.append({'station': dic['id'], 'domes': dic['domes'], 'x': x, 'y': y, 'z': z})
             line = fin.readline()
+        return results
 
 # example usage
-if __name__ == "__main__":
-    x,y,z = itrf_extrapolate('ITRF2008_GNSS.SSC.txt', t=datetime.datetime.now(), station='ANKR')
-    print 'Coordinates X={}, Y={}, Z={}'.format(x,y,z)
-    x,y,z = itrf_extrapolate('ITRF2014_GNSS.SSC.txt', t=datetime.datetime.now(), station='ANKR')
-    print 'Coordinates X={}, Y={}, Z={}'.format(x,y,z)
+#if __name__ == "__main__":
+#    x,y,z = itrf_extrapolate('ITRF2008_GNSS.SSC.txt', t=datetime.datetime.now(), station='ANKR')
+#    print('Coordinates X={}, Y={}, Z={}'.format(x,y,z))
+#    x,y,z = itrf_extrapolate('ITRF2014_GNSS.SSC.txt', t=datetime.datetime.now(), station='ANKR')
+#    print('Coordinates X={}, Y={}, Z={}'.format(x,y,z))
