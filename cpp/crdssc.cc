@@ -4,49 +4,64 @@
 #include <exception>
 #include <iostream>
 
+/// Function to read the header off from a SSC-type file.
+///
+/// Given an SSC-type input file stream (ascii), this function will read the
+/// first line and extract information (i.e. reference frame name and 
+/// reference epoch). Then it will read (and skip) the next 6 lines, so that
+/// the input stream is at a position of reading record lines (i.e. next line
+/// to be read from the stream will be the first record line).
+/// The function will automatically go to the top of the file to read the
+/// header.
+///
+/// @param[in] ssc_stream An SSC-type input file stream (aka std::ifstream)
+/// @param[out] ref_frame The name of the reference frame as extracted from 
+///                       the file header (atually the first word of the first
+///                       line).
+/// @return               The reference epoch as float, i.e. as fractional year.
+///
 float
-read_ssc_header(const char* ssc_file, std::string& ref_frame)
+read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
 {
     using pos_t =  std::string::size_type;
 
     constexpr pos_t max_chars {256};
-    std::string line,
-                middle_part{"STATION POSITIONS AT EPOCH"},
-                last_part{"AND VELOCITIES"};
-    line.reserve(max_chars);
+    constexpr std::string middle_part {"STATION POSITIONS AT EPOCH"},
+                          last_part   {"AND VELOCITIES"};
+    constexpr pos_t mdp_sz {middle_part.size()},
+                    ltp_sz {last_part.size()};
     const char whitesp = ' ';
+    auto npos = std::string::npos;
+    std::string line;
+    line.reserve(max_chars);
 
-    std::ifstream fin (ssc_file);
-    if ( !fin.is_open() ) {
-        throw std::runtime_error
-        ("ERROR. Failed to open file \""+std::string(ssc_file)+"\"");
-    }
-    
-    std::getline(fin, line);
+    ssc_stream.seekg(0, std::ios::beg);
+    std::getline(ssc_stream, line);
 
     // get the reference frame, which is the frst word in the line
     pos_t length = line.size();
     pos_t pos1   = line.find_first_not_of(whitesp);
     pos_t pos2   = line.find_first_of(whitesp, pos1);
-    assert(pos2 > pos1);
-    ref_frame = line.substr(pos1, pos2);
-    std::cout<<"\n--frame ["<<ref_frame<<"]";
+    if ( !((pos1 != npos && pos2 != npos) && (pos2 > pos1)) ) return -1e0;
+    ref_frame    = line.substr(pos1, pos2-pos1);
 
-    // the header is actually pretty standard ....
-    assert( length > pos2 + middle_part.size() );
-    std::cout<<"\n--["<<line.substr(pos2, pos2+middle_part.size())<<"]";
-    assert( line.substr(pos2, pos2+middle_part.size()) == middle_part );
+    // the header is actually pretty standard .... check the middle part
+    if ( !(length > pos2 + mdp_sz) ||
+         !(line.substr(pos2+1, mdp_sz) == middle_part) ) return -1e0;
 
     // get the reference epoch
-    pos1 = pos2+middle_part.size();
+    pos1 = pos2 + mdp_sz + 1;
     pos2 = line.find_first_of(whitesp, pos1+1);
-    std::string ref_epoch {line.substr(pos1, pos2)};
+    std::string ref_epoch {line.substr(pos1, pos2-pos1)};
 
     // check the last part
-    assert( length >= pos2 + last_part.size() );
-    assert( line.substr(pos2+1, pos2+last_part.size()) == last_part );
+    if ( !(length >= pos2 + ltp_sz) ||
+         !(line.substr(pos2+1, ltp_sz) == last_part) ) return -1e0;
 
-    // retun reference epoch as flost
+    // read a bunch of no-info lines ....
+    for (int i = 0; i < 6; i++) std::getline(ssc_stream, line);
+
+    // retun reference epoch as float
     return std::stof(ref_epoch);
 }
 
