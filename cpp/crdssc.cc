@@ -19,6 +19,10 @@
 ///                       the file header (atually the first word of the first
 ///                       line).
 /// @return               The reference epoch as float, i.e. as fractional year.
+///                       or -1 to signal that somethin went wrong while
+///                       resolving the fields of the first line.
+/// @note  Always check that the returned year is greater than 0. If not, then
+///        the header was not read properly.
 ///
 float
 read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
@@ -26,9 +30,9 @@ read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
     using pos_t =  std::string::size_type;
 
     constexpr pos_t max_chars {256};
-    constexpr std::string middle_part {"STATION POSITIONS AT EPOCH"},
+    const     std::string middle_part {"STATION POSITIONS AT EPOCH"},
                           last_part   {"AND VELOCITIES"};
-    constexpr pos_t mdp_sz {middle_part.size()},
+    const     pos_t mdp_sz {middle_part.size()},
                     ltp_sz {last_part.size()};
     const char whitesp = ' ';
     auto npos = std::string::npos;
@@ -65,12 +69,63 @@ read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
     return std::stof(ref_epoch);
 }
 
+template<typename S>
+    struct ssc_record
+{
+    std::string site;        ///< DOMES+' '+NAME = 9+1+4 chars
+    ngpt::datetime<S> from,  ///< Validity interval, from ...
+                      to;    ///< Vlidity interval, to ...
+    double x,y,z,            ///< Coordinates in m
+           vx,vy,vz,         ///< Velocities in m/y
+           sx,sy,sz,         ///< Coordinate sigmas
+           svx,svy,svz;      ///< Velocity sigmas
+    void initialize()
+    {
+        site.reserve(15);
+        from = ngpt::datetime<S>::min();
+        to   = ngpt::datetime<S>::max();
+        return;
+    }
+}
+
+template<typename S>
+    int
+    read_next_record(std::ifstream& ssc_stream, ssc_record& record)
+{
+    constexpr int max_chars {256};
+    std::string line;
+    line.reserve(max_chars);
+    
+    if ( std::getline(ssc_stream, line) ) {
+        record.site  = line.substr(0, 10);                 // domes
+        record.size += line.substr(32, 4);                 // 4-char id
+        std::size_t pos {32}, idx;
+        record.x = std::stod(line.substr(pos, 20), &idx);   // x
+        pos += idx;
+        record.y = std::stod(line.substr(pos, 20), &idx);   // y
+        pos += idx;
+        record.z = std::stod(line.substr(pos, 20), &idx);   // z
+        pos += idx;
+        record.sx = std::stod(line.substr(pos, 20), &idx);  // sx
+        pos += idx;
+        record.sy = std::stod(line.substr(pos, 20), &idx);  // sy
+        pos += idx;
+        record.sz = std::stod(line.substr(pos, 20), &idx);  // sz
+        pos += idx;
+        if ( (pos = line.find_first_of(':', pos)) != std::string::npos ) {
+
+        }
+    }
+}
+
 int main()
 {
     const char* ssc_file = "ITRF2008_GNSS.SSC.txt";
     std::string reff;
     float       reft;
-    reft = read_ssc_header(ssc_file, reff);
+
+    std::ifstream fin (ssc_file);
+    reft = read_ssc_header(fin, reff);
 
     std::cout<<"\nFrame is \""<<reff<<"\", time is "<<reft<<"\n";
     return 0;
