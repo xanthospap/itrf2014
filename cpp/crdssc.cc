@@ -3,6 +3,12 @@
 #include <string>
 #include <exception>
 #include <iostream>
+#include <functional>
+#include <vector>
+#include <algorithm>
+
+#include "ggdatetime/dtcalendar.hpp"
+#include "ggdatetime/datetime_write.hpp"
 
 /// Function to read the header off from a SSC-type file.
 ///
@@ -51,7 +57,7 @@ read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
 
     // the header is actually pretty standard .... check the middle part
     if ( !(length > pos2 + mdp_sz) ||
-         !(line.substr(pos2+1, mdp_sz) == middle_part) ) return -1e0;
+         line.compare(pos2+1, mdp_sz, middle_part) ) return -1e0;
 
     // get the reference epoch
     pos1 = pos2 + mdp_sz + 1;
@@ -60,7 +66,7 @@ read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
 
     // check the last part
     if ( !(length >= pos2 + ltp_sz) ||
-         !(line.substr(pos2+1, ltp_sz) == last_part) ) return -1e0;
+         line.compare(pos2+1, ltp_sz, last_part) ) return -1e0;
 
     // read a bunch of no-info lines ....
     for (int i = 0; i < 6; i++) std::getline(ssc_stream, line);
@@ -72,34 +78,28 @@ read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
 template<typename S>
     struct ssc_record
 {
-    std::string site;        ///< DOMES+' '+NAME = 9+1+4 chars
+    std::string site;        ///< NAME+' '+DOMES = 9+1+4 chars
     ngpt::datetime<S> from,  ///< Validity interval, from ...
                       to;    ///< Vlidity interval, to ...
     double x,y,z,            ///< Coordinates in m
            vx,vy,vz,         ///< Velocities in m/y
            sx,sy,sz,         ///< Coordinate sigmas
            svx,svy,svz;      ///< Velocity sigmas
-    void initialize()
-    {
-        site.reserve(15);
-        from = ngpt::datetime<S>::min();
-        to   = ngpt::datetime<S>::max();
-        return;
-    }
-}
+};
 
 template<typename S>
     int
-    read_next_record(std::ifstream& ssc_stream, ssc_record& record)
+    read_next_record(std::ifstream& ssc_stream, ssc_record<S>& record)
 {
     constexpr int max_chars {256};
     std::string line;
     line.reserve(max_chars);
     
+    // first line has domes, site_id, position info and validity interval
     if ( std::getline(ssc_stream, line) ) {
-        record.site  = line.substr(0, 10);                 // domes
-        record.size += line.substr(32, 4);                 // 4-char id
-        std::size_t pos {32}, idx;
+        record.site  = line.substr(32, 5);                 // 4-char id
+        record.site += line.substr(0, 10);                 // domes
+        std::size_t pos {36}, idx;
         record.x = std::stod(line.substr(pos, 20), &idx);   // x
         pos += idx;
         record.y = std::stod(line.substr(pos, 20), &idx);   // y
@@ -112,29 +112,133 @@ template<typename S>
         pos += idx;
         record.sz = std::stod(line.substr(pos, 20), &idx);  // sz
         pos += idx;
+        record.from = ngpt::datetime<S>::min();     // preset from to min date
+        record.to   = ngpt::datetime<S>::max();     // preset to to max date
         if ( (pos = line.find_first_of(':', pos)) != std::string::npos ) {
+            int  iyr, idoy;
+            long isec;
+            // Resolve 'from' date string ...
+            pos  -= 2;
+            iyr   = std::stoi(line.substr(pos, 2), &idx);
+            assert( idx == 2 );
+            iyr  += (iyr > 70 ) ? (1900) : (2000);
+            pos  += idx + 1;
+            idoy  = std::stoi(line.substr(pos, 3), &idx);
+            assert( idx == 3 );
+            pos  += idx + 1;
+            isec  = std::stol(line.substr(pos, 6), &idx); // seconds
+            isec *= S::template sec_factor<long>(); // cast seconds to whatever S is
+            if ( iyr + idoy + isec != 0 ) { 
+                ngpt::datetime<S> tmp
+                    {ngpt::year{iyr}, ngpt::day_of_year{idoy}, S{isec}};
+                record.from = tmp;
+            }
+            // Resolve 'to' date sting ...
+            pos  += idx;
+            pos   = line.find_first_of(':', pos) - 2;
+            iyr   = std::stoi(line.substr(pos, 2), &idx);
+            iyr  += (iyr > 70 ) ? (1900) : (2000);
+            pos  += idx + 1;
+            idoy  = std::stoi(line.substr(pos, 3), &idx);
+            assert( idx == 3 );
+            pos  += idx + 1;
+            isec  = std::stol(line.substr(pos));
+            isec *= S::template sec_factor<long>();
+            if ( iyr + idoy + isec != 0 ) { 
+                ngpt::datetime<S> tmp
+                    {ngpt::year{iyr}, ngpt::day_of_year{idoy}, S{isec}};
+                record.to = tmp;
+            }
+        }
+    } else {
+        return 1;
+    }
+    
+    // second line has velocity info
+    if ( std::getline(ssc_stream, line) ) {
+        assert( !line.compare(0, 9, record.site, 5, 9 ) );
+        std::size_t pos {36}, idx;
+        record.vx = std::stod(line.substr(pos, 20), &idx);   // vx
+        pos += idx;
+        record.vy = std::stod(line.substr(pos, 20), &idx);   // vy
+        pos += idx;
+        record.vz = std::stod(line.substr(pos, 20), &idx);   // vz
+        pos += idx;
+        record.svx = std::stod(line.substr(pos, 20), &idx);  // svx
+        pos += idx;
+        record.svy = std::stod(line.substr(pos, 20), &idx);  // svy
+        pos += idx;
+        record.svz = std::stod(line.substr(pos, 20), &idx);  // svz
+    } else {
+        return 1;
+    }
+    
+    return 0;
+}
 
+int
+compare_sta_id(const std::string& str1, const std::string& str2)
+{ return str1.compare(0, 4, str2, 0, 4); }
+int
+compare_sta_domes(const std::string& str1, const std::string& str2)
+{ return str1.compare(5, 9, str2, 5, 9); }
+
+template<typename S>
+    int
+    ssc_extrapolate(std::ifstream& fin, const std::vector<std::string>& stations, 
+        const ngpt::datetime<S>& t, const ngpt::datetime<S>& t0, 
+        std::vector<std::tuple<std::string, double, double, double>>& results,
+        bool use_domes = false)
+{
+    std::function<int(const std::string&, const std::string&)> cmp
+        = compare_sta_id;
+    if ( use_domes ) cmp = compare_sta_domes;
+    ngpt::datetime_interval dt {ngpt::delta_date(t, t0)};
+    double dyr = dt.as_mjd() / 365.25;
+
+    ssc_record<S> record;
+    std::vector<std::string> sta {stations};
+    auto it = sta.begin();
+    std::string site;
+    std::cout.setf(std::ios::fixed);
+    std::cout.precision(5);
+    while ( !read_next_record<S>(fin, record) && sta.size() ) {
+        site = record.site;
+        if ( (it = std::find_if(sta.begin(), sta.end(),
+            [=](const std::string& str)
+                {return !cmp(site, str);})) != sta.end() ) {
+            if ( t >= record.from && t < record.to ) {
+                sta.erase(it);
+                auto x = record.x + (record.vx * dyr);
+                auto y = record.y + (record.vy * dyr);
+                auto z = record.z + (record.vz * dyr);
+                results.emplace_back( {site, x, y, z} );
+            }
         }
     }
+    return sta.size();
 }
 
 int main()
 {
+    using mlsec = ngpt::milliseconds;
+
     const char* ssc_file = "ITRF2008_GNSS.SSC.txt";
     std::string reff;
     float       reft;
 
     std::ifstream fin (ssc_file);
     reft = read_ssc_header(fin, reff);
-
     std::cout<<"\nFrame is \""<<reff<<"\", time is "<<reft<<"\n";
+
+    std::vector<std::string> stations;
+    stations.emplace_back("NRMD 92701M005");
+    stations.emplace_back("REUN 97401M003");
+    stations.emplace_back("AZRY 49971M001");
+
+    ngpt::datetime<mlsec> t {ngpt::year{2017}, ngpt::day_of_year{143}, ngpt::hours{12},
+    ngpt::minutes{40}, mlsec{365554}};
+    ssc_extrapolate(fin, stations, t);
+
     return 0;
 }
-
-/*
-template<typename D>
-    get_ssc_info(const char* ssc_file, const char* station,
-        const ngpt::datetime<D>& t)
-{
-}
-*/
