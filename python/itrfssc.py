@@ -1,5 +1,6 @@
 #! /usr/bin/python
 
+from __future__ import print_function
 import sys
 import datetime
 sys.path.append('.')
@@ -37,7 +38,7 @@ def read_header(fstream):
     refepoch = int(float(l[5]))
     assert( refepoch == float(l[5]) )
     for i in range(6): fstream.readline()
-    return refframe, datetime.datetime(year=refepoch, month=1, day=1)
+    return refframe, datetime.datetime(year=refepoch, month=1, day=1, hour=0, minute=0, second=0)
 
 def read_next_record(line, fstream):
     """ Read a record line (for one station) off from a SSC file. Actually, the
@@ -112,9 +113,10 @@ def extrapolate(dtq, x0, vx):
         float
             Value of the model at delta time dtq (i.e. x0+vx(ti-t0) = x0+vx*dtq).
     """
+    print('x = {0:15.5f} + {1:10.4f} * {2:15.10f}'.format(x0, vx, dtq))
     return x0 + vx*dtq
 
-def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=[], domes=[]):
+def itrf_extrapolate(ssc_file, t0, t=datetime.datetime.now(), station=[], domes=[]):
     """ Given an (ITRF) .SSC file, compute the coordinates of a station list
         at the given epoch (t).The stations can be described by either passing
         in their 4-char id, or their DOMES numbers.
@@ -126,6 +128,8 @@ def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=[], domes=[]):
             http://itrf.ign.fr/ITRF_solutions/2014/doc/ITRF2014_GNSS.SSC.txt)
         t: datetime.datetime
             The time we want the coordinates at.
+        t0: datetime.datetime
+            The reference epoch
         station: list of strings
             The names of the stations (4-char id)
         domes: list of strings
@@ -149,7 +153,7 @@ def itrf_extrapolate(ssc_file, t=datetime.datetime.now(), station=[], domes=[]):
             dic = read_next_record(line, fin)
             if dic['domes'] in domes or dic['id'] in station:
                 if t >= dic['start'] and t < dic['stop']:
-                    dt  = t - dic['start']
+                    dt  = t - t0
                     dyr = (dt.days + dt.seconds/86400e0)/365.25
                     x   = extrapolate(dyr, dic['x'], dic['vx'])
                     y   = extrapolate(dyr, dic['y'], dic['vy'])

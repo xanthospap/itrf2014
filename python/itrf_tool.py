@@ -110,8 +110,9 @@ if args.psd_only and not args.ssc_file:
     sys.exit(0)
 
 # First step is to extrapolate coordinates
-results =  itrf_extrapolate(ssc_file=args.ssc_file, t=t, station=args.stations)
-results += itrf_extrapolate(ssc_file=args.ssc_file, t=t, domes=args.domes)
+with open(args.ssc_file) as fin: frame, reft = read_header(fin)
+results =  itrf_extrapolate(ssc_file=args.ssc_file, t0=reft, t=t, station=args.stations)
+results += itrf_extrapolate(ssc_file=args.ssc_file, t0=reft, t=t, domes=args.domes)
 
 # find PSD corrections (if needed); if we want extra PSD info, we are going to
 #+ strore it in a new list
@@ -131,7 +132,6 @@ if args.psd_file:
         #print('#New coordinates of station {} {} {} {}'.format(item['station'], item['x']+dx, item['y']+dy, item['z']+dz))
 
 # write results (depending on if we only want the PSDs or not)
-with open(args.ssc_file) as fin: frame, reft = read_header(fin)
 print('Reference Frame: {}, Reference Epoch {}'.format(frame, reft))
 if not args.psd_only:
     print('NAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH')
