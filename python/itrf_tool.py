@@ -103,7 +103,7 @@ if args.psd_only and not args.ssc_file:
     for d in args.domes:
         sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
         results.append([sta, dms, e, n, u])
-    print('NAME   DOMES   East(mm) North(m)  Up(m)        EPOCH')
+    print('NAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH')
     print('---- --------- -------- -------- -------- ------------------')
     for item in results:
         print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5}'.format(*(item+[t])))
@@ -139,9 +139,8 @@ if not args.psd_only:
     for idx, item in enumerate(results):
         print('{0} {1} {2:15.5f} {3:15.5f} {4:15.5f} {5}'.format(item['station'], item['domes'], item['x'], item['y'], item['z'], t))
 else:
-    print('NAME   DOMES   East(mm) North(m)  Up(m)     X(mm)    Y(mm)     Z(mm)      EPOCH')
+    print('NAME   DOMES   East(mm) North(mm) Up(mm)   X(mm)    Y(mm)     Z(mm)      EPOCH')
     print('---- --------- -------- -------- -------- -------- -------- -------- ------------------')
     for idx, item in enumerate(psd_info):
         print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5:8.2f} {6:8.2f} {7:8.2f} {8}'.format(item['sta'], item['dms'], item['e'], item['n'], item['u'], item['dx'], item['dy'], item['dz'], t))
 sys.exit(0)
-

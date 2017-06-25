@@ -113,7 +113,6 @@ def extrapolate(dtq, x0, vx):
         float
             Value of the model at delta time dtq (i.e. x0+vx(ti-t0) = x0+vx*dtq).
     """
-    print('x = {0:15.5f} + {1:10.4f} * {2:15.10f}'.format(x0, vx, dtq))
     return x0 + vx*dtq
 
 def itrf_extrapolate(ssc_file, t0, t=datetime.datetime.now(), station=[], domes=[]):
