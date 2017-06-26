@@ -1,14 +1,77 @@
+#ifndef __ITRF_CRD_TOOLS_HPP__
+#define __ITRF_CRD_TOOLS_HPP__
+
 #include <fstream>
 #include <cassert>
 #include <string>
-#include <exception>
-#include <iostream>
 #include <functional>
 #include <vector>
 #include <algorithm>
+#ifdef DEBUG
+#include <iostream>
+#endif
 
 #include "ggdatetime/dtcalendar.hpp"
 #include "ggdatetime/datetime_write.hpp"
+
+namespace ngpt
+{
+
+/// A structure to hold a station and its coordinates.
+/// It holds the station's name (4char-id + ' ' + domes number), plus the
+/// 3 cartesian components (x, y, z). This is clearly a dummy class, to ease
+/// the use of such simple collections.
+struct sta_crd
+{
+    double x,y,z;     ///< Coordinates in m, [x,y,z] components
+    std::string site; ///< NAME+' '+DOMES = 9+1+4 chars
+
+    /// Constructor.
+    explicit
+    sta_crd(const std::string& s, double xc, double yc, double zc) noexcept
+    : x{xc}, y{yc}, z{zc}, site{s}
+    {};
+};
+
+namespace itrf_details
+{
+
+/// A structure to hold a (full, two-line) SSC record for a station.
+template<typename S>
+    struct ssc_record
+{
+    std::string site;        ///< NAME+' '+DOMES = 9+1+4 chars
+    ngpt::datetime<S> from,  ///< Validity interval, from ...
+                      to;    ///< Vlidity interval, to ...
+    double x,y,z,            ///< Coordinates in m
+           vx,vy,vz,         ///< Velocities in m/y
+           sx,sy,sz,         ///< Coordinate sigmas
+           svx,svy,svz;      ///< Velocity sigmas
+};
+
+/// A simple class to hold PSD records.
+template <typename S>
+    struct psd_record
+{
+    std::string site;           ///< NAME + ' ' + DOMES
+    ngpt::datetime<S> teq;      ///< Time of earthquake
+    int    emdn, nmdn, umdn;    ///< Model numbers for e, n and u components
+    double ea1, et1, ea2, et2;  ///< a1,t1,a2,t2 parameters for the east component
+    double na1, nt1, na2, nt2;  ///< a1,t1,a2,t2 parameters for the north component
+    double ua1, ut1, ua2, ut2;  ///< a1,t1,a2,t2 parameters for the up component
+};
+
+/// Compare the first 4 chars of two strings. This function is mean to implement
+/// (in the context it is used) a station 4-char-id comparisson.
+inline int
+compare_sta_id(const std::string& str1, const std::string& str2)
+{ return str1.compare(0, 4, str2, 0, 4); }
+
+/// Compare chars in the range [5, 9) of two strings. This function is mean to
+/// implement (in the context it is used) a station DOMES number comparisson.
+inline int
+compare_sta_domes(const std::string& str1, const std::string& str2)
+{ return str1.compare(5, 9, str2, 5, 9); }
 
 /// Compute the post-seismic deformation/correction using parametric models:
 ///  - PWL (Piece-Wise Linear Function)
@@ -37,87 +100,63 @@
 double
 parametric(int model, double dtq=0e0, double a1=0e0,double t1=0e0,
     double a2=0e0, double t2=0e0)
-noexcept
-{
-    double d {0e0}, te1, te2;
-    switch (model) {
-        case 0: // PWL (Piece-Wise Linear Function)
-            d = 0e0;
-            break;
-        case 1: // Logarithmic Function
-            d = a1*std::log(1e0+dtq/t1);
-            break;
-        case 2: // Exponential Function
-            te1 = dtq/t1;
-            d   =  a1*(1e0-std::exp(-te1));
-            break;
-        case 3: // Logarithmic + Exponential
-            te2 = dtq/t2;
-            d = a1*std::log(1e0+dtq/t1) + a2*(1e0-std::exp(-te2));
-            break;
-        case 4: // Two Exponential Functions
-            te1 = dtq/t1;
-            te2 = dtq/t2;
-            d   = a1*(1e0-std::exp(-te1)) + a2*(1e0-std::exp(-te2));
-    }
+noexcept;
 
-    return d;
-}
-
+/// Read PSD model number and respective parameters off from a 
+/// ITRF2014-psd-*.dat file. This function will take (as input) a line from a
+/// PSD .dat file, and resolve the fields recorded (hence we are really 
+/// interested at line columns >= 34). Depending on the model (number), the
+/// corresponding number of coefficients will be collected (e.g. if the model
+/// is 0, then no parameters will be read, but if the model is 1, 2 paramters
+/// will be read).
+///
+/// @param[in]  line     The line (of a PSD .dat file) to be resolved.
+/// @param[out] model_nr The model number collected from the line (int in 
+///                      range [0,4])
+/// @param[out] a1       The a1 parameter of the model in mm; read if 
+///                      model_nr > 0.
+/// @param[out] t1       The t1 parameter of the model in fractional years; 
+///                      read if model_nr > 0.
+/// @param[out] a2       The a2 parameter of the model in mm; read if 
+///                      model_nr > 3.
+/// @param[out] t2       The t2 parameter of the model in fractional years; 
+///                      read if model_nr > 3.
+/// @return              The number of parameters read/collected. Anything
+///                      other that an integer in the range [0, 4] denotes
+///                      an error.
 int
 read_psd_parameters(const std::string& line, int& model_nr, double& a1,
-    double& t1, double& a2, double& t2)
-{
-    model_nr = line[34] - '0';
-    // std::cout<<"\n\tRead model="<<model_nr;
-    if (model_nr < 0 || model_nr > 4) return -1;
+    double& t1, double& a2, double& t2);
 
-    std::size_t pos {35}, idx;
-    switch (model_nr) {
-        case 0:
-            return 0;
-        case 1:
-            // same as case 2
-        case 2:
-            a1 = std::stod(line.substr(pos, 10), &idx);   // a1
-            // std::cout<<" a1="<<a1;
-            pos += idx;
-            t1 = std::stod(line.substr(pos, 10), &idx);   // t1
-            // std::cout<<" t1="<<t1;
-            return 2;
-        case 3:
-            // same as case 4
-        case 4:
-            a1 = std::stod(line.substr(pos, 10), &idx);   // a1
-            // std::cout<<" a1="<<a1;
-            pos += idx;
-            t1 = std::stod(line.substr(pos, 10), &idx);   // t1
-            // std::cout<<" t1="<<t1;
-            pos += idx;
-            a2 = std::stod(line.substr(pos, 10), &idx);   // a1
-            // std::cout<<" a2="<<a2;
-            pos += idx;
-            t2 = std::stod(line.substr(pos, 10), &idx);   // t1
-            // std::cout<<" t2="<<t2;
-            return 4;
-    }
-    return -1;
-}
-
+/// Read a station PSD record off from a PSD .dat file. This function will take
+/// in a file stream (actually an open PSD .dat file) and try to read the PSD
+/// record for a station, that is the record at which the file's get pointer is
+/// set at. It will try to read 3 lines (one per component) and resolve all
+/// respective fields.
+/// PSD .dat files use a strict format, and they are available here:
+/// http://itrf.ensg.ign.fr/ITRF_solutions/2014/ITRF2014_files.php
+///
+/// @param[in]  psd_stream The input file stream (an open PSD .dat file).
+/// @param[out] rec        An instance of type psd_record<S>, where the resolved
+///                        parameters/fields will be stored. Note that depending
+///                        on the PSD model, only a subset of the instance will
+///                        have valid values; e.g. if the model for the east
+///                        component is 2 (i.e. rec.emdn = 2), then only the
+///                        members rec.ea1 and rec.et1 will have valid values;
+///                        the values of members rec.ea2 and rec.et2 will not
+///                        be changed (kept as in input) and hence will have no
+///                        meaning.
+/// @return An integer value denoting the function status. A value of 0, signifies
+///         that the function did everything correctly and all three lines were
+///         resolved successefuly. Else (i.e. in case of error), an integer other
+///         thatn 0 is returned.
+///
+/// @warning The function will not check the validity of the resolved date (e.g.
+///          will not check if year, day of year or seconds are valid numbers
+///          and that the datetime instance formed is correct).
 template <typename S>
-    struct psd_record
-{
-    std::string site; ///< NAME + ' ' + DOMES
-    ngpt::datetime<S> teq;
-    int    emdn, nmdn, umdn;
-    double ea1, et1, ea2, et2;
-    double na1, nt1, na2, nt2;
-    double ua1, ut1, ua2, ut2;
-};
-
-template <typename S>
-int
-read_next_record_psd(std::ifstream& psd_stream, psd_record<S>& rec)
+    int
+    read_next_record_psd(std::ifstream& psd_stream, psd_record<S>& rec)
 {
     constexpr int max_chars {256};
     std::string line;
@@ -129,19 +168,15 @@ read_next_record_psd(std::ifstream& psd_stream, psd_record<S>& rec)
         rec.site += line.substr(9, 9);
         int  iyr, idoy;
         long isec;
-        //std::cout<<"\n\t\tyear="<<line.substr(19, 5);
         iyr  = std::stoi(line.substr(19, 5), &idx);
         assert( idx == 2 );
         iyr  += (iyr > 70 ) ? (1900) : (2000);
-        //std::cout<<" doy ="<<line.substr(22, 5);
         idoy = std::stoi(line.substr(22, 5), &idx);
         assert( idx == 3 );
-        //std::cout<<" sec ="<<line.substr(26, 6);
         isec = std::stoi(line.substr(26, 6), &idx);
         isec *= S::template sec_factor<long>(); // cast seconds to whatever S is
         ngpt::datetime<S> tmp {ngpt::year{iyr}, ngpt::day_of_year{idoy}, S{isec}};
         rec.teq = tmp;
-        //std::cout<<" " << ngpt::strftime_ymd_hms(rec.teq);
         assert( line[32] == 'E' );
         if ( read_psd_parameters(line, rec.emdn, rec.ea1, rec.et1, rec.ea2, rec.et2) < 0 )
             return -1;
@@ -189,79 +224,7 @@ read_next_record_psd(std::ifstream& psd_stream, psd_record<S>& rec)
 ///        the header was not read properly.
 ///
 float
-read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame)
-{
-    using pos_t =  std::string::size_type;
-
-    constexpr pos_t max_chars {256};
-    const     std::string middle_part {"STATION POSITIONS AT EPOCH"},
-                          last_part   {"AND VELOCITIES"};
-    const     pos_t mdp_sz {middle_part.size()},
-                    ltp_sz {last_part.size()};
-    const char whitesp = ' ';
-    auto npos = std::string::npos;
-    std::string line;
-    line.reserve(max_chars);
-
-    ssc_stream.seekg(0, std::ios::beg);
-    std::getline(ssc_stream, line);
-
-    // get the reference frame, which is the frst word in the line
-    pos_t length = line.size();
-    pos_t pos1   = line.find_first_not_of(whitesp);
-    pos_t pos2   = line.find_first_of(whitesp, pos1);
-    if ( !((pos1 != npos && pos2 != npos) && (pos2 > pos1)) ) return -1e0;
-    ref_frame    = line.substr(pos1, pos2-pos1);
-
-    // the header is actually pretty standard .... check the middle part
-    if ( !(length > pos2 + mdp_sz) ||
-         line.compare(pos2+1, mdp_sz, middle_part) ) return -1e0;
-
-    // get the reference epoch
-    pos1 = pos2 + mdp_sz + 1;
-    pos2 = line.find_first_of(whitesp, pos1+1);
-    std::string ref_epoch {line.substr(pos1, pos2-pos1)};
-
-    // check the last part
-    if ( !(length >= pos2 + ltp_sz) ||
-         line.compare(pos2+1, ltp_sz, last_part) ) return -1e0;
-
-    // read a bunch of no-info lines ....
-    for (int i = 0; i < 6; i++) std::getline(ssc_stream, line);
-
-    // retun reference epoch as float
-    return std::stof(ref_epoch);
-}
-
-/// A structure to hold a (full, two-line) SSC record for a station.
-template<typename S>
-    struct ssc_record
-{
-    std::string site;        ///< NAME+' '+DOMES = 9+1+4 chars
-    ngpt::datetime<S> from,  ///< Validity interval, from ...
-                      to;    ///< Vlidity interval, to ...
-    double x,y,z,            ///< Coordinates in m
-           vx,vy,vz,         ///< Velocities in m/y
-           sx,sy,sz,         ///< Coordinate sigmas
-           svx,svy,svz;      ///< Velocity sigmas
-};
-
-/// A structure to hld a station and its coordinates.
-/// It holds the station's name (4char-id + ' ' + domes number), plus the
-/// 3 cartesian components (x, y, z). This is clearly a dummy class, to ease
-/// the use of such simple collections.
-struct ssc_sta_crd
-{
-    double x,y,z;     ///< Coordinates in m, [x,y,z] components
-    std::string site; ///< NAME+' '+DOMES = 9+1+4 chars
-
-    /// Constructor.
-    explicit
-    ssc_sta_crd(const std::string& s, double xc, double yc, double zc) noexcept
-    : x{xc}, y{yc}, z{zc}, site{s}
-    {};
-};
-
+read_ssc_header(std::ifstream& ssc_stream, std::string& ref_frame);
 
 /// Read a station record froma an SSC files (stream).
 ///
@@ -378,39 +341,29 @@ template<typename S>
     return 0;
 }
 
-/// Compare the first 4 chars of two strings. This function is mean to implement
-/// (in the context it is used) a station 4-char-id comparisson.
-int
-compare_sta_id(const std::string& str1, const std::string& str2)
-{ return str1.compare(0, 4, str2, 0, 4); }
-
-/// Compare chars in the range [5, 9) of two strings. This function is mean to
-/// implement (in the context it is used) a station DOMES number comparisson.
-int
-compare_sta_domes(const std::string& str1, const std::string& str2)
-{ return str1.compare(5, 9, str2, 5, 9); }
+} // namespace itrf_details
 
 template<typename S>
     int
     ssc_extrapolate(std::ifstream& fin, const std::vector<std::string>& stations, 
         const ngpt::datetime<S>& t, const ngpt::datetime<S>& t0, 
-        std::vector<ssc_sta_crd>& results,
+        std::vector<sta_crd>& results,
         bool use_domes = false)
 {
     std::function<int(const std::string&, const std::string&)> cmp
-        = compare_sta_id;
-    if ( use_domes ) cmp = compare_sta_domes;
+        = itrf_details::compare_sta_id;
+    if ( use_domes ) cmp = itrf_details::compare_sta_domes;
     ngpt::datetime_interval<S> dt {ngpt::delta_date(t, t0)};
     double dyr = dt.as_mjd() / 365.25;
 
     results.clear();
     results.reserve(stations.size());
 
-    ssc_record<S> record;
+    itrf_details::ssc_record<S> record;
     std::vector<std::string> sta {stations};
     auto it = sta.begin();
     std::string site;
-    while ( !read_next_record<S>(fin, record) && sta.size() ) {
+    while ( !itrf_details::read_next_record<S>(fin, record) && sta.size() ) {
         site = record.site;
         if ( (it = std::find_if(sta.begin(), sta.end(),
             [=](const std::string& str)
@@ -430,93 +383,56 @@ template<typename S>
 template<typename S>
     int
     compute_psd(const char* psd_file, const std::vector<std::string>& stations,
-        const ngpt::datetime<S>& t, std::vector<ssc_sta_crd>& results,
+        const ngpt::datetime<S>& t, std::vector<sta_crd>& results,
         bool use_domes = false)
 {
     results.clear();
     results.reserve(stations.size());
-    for (const auto& i : stations) {
-        results.emplace_back(i, 0e0, 0e0, 0e0);
-    }
 
     std::ifstream fin (psd_file);
     if ( !fin.is_open() ) return -1;
+    
+    // form the site names as 4CHAR_ID + ' ' + DOMES
+    std::string site_name;
+    for (const auto& i : stations) {
+        if ( !use_domes ) {
+            site_name = i.substr(0, 4) + "          ";
+        } else {
+            site_name = "     " + i.substr(0, 9);
+        }
+        results.emplace_back(site_name, 0e0, 0e0, 0e0);
+    }
 
     std::function<int(const std::string&, const std::string&)> cmp
-        = compare_sta_id;
-    if ( use_domes ) cmp = compare_sta_domes;
+        = itrf_details::compare_sta_id;
+    if ( use_domes ) cmp = itrf_details::compare_sta_domes;
 
-    psd_record<S> rec;
+    itrf_details::psd_record<S> rec;
     auto it   = results.begin();
     auto rend = results.end();
     std::string site;
     double dyr;
-    while ( !read_next_record_psd<S>(fin, rec) ) {
+    while ( !itrf_details::read_next_record_psd<S>(fin, rec) ) {
         site = rec.site;
         if ( (it = std::find_if(results.begin(), rend,
-            [=](const ssc_sta_crd& record)
+            [=](const sta_crd& record)
                 {return !cmp(site, record.site);})) != rend ) {
             it->site = rec.site;
-            // std::cout<<"\n\tMatched site name, "<<rec.site;
             if ( t >= rec.teq ) {
-                // std::cout<<"\n\tMatched time";
                 ngpt::datetime_interval<S> dt {ngpt::delta_date(t, rec.teq)};
                 dyr = dt.as_mjd() / 365.25;
-                // std::cout<<"\n\t teq= "<<ngpt::strftime_ymd_hms(rec.teq)<<", t="<<ngpt::strftime_ymd_hms(t);
-                // std::cout<<"\n\tparametric: "<<rec.emdn<<" "<<dyr<<" "<<rec.ea1<<" "<<rec.et1<<" "<<rec.ea2<<" "<<rec.et2;
-                it->x += parametric(rec.emdn, dyr, rec.ea1, rec.et1, rec.ea2, rec.et2);
-                it->y += parametric(rec.nmdn, dyr, rec.na1, rec.nt1, rec.na2, rec.nt2);
-                it->z += parametric(rec.umdn, dyr, rec.ua1, rec.ut1, rec.ua2, rec.ut2);
+                it->x += itrf_details::parametric(rec.emdn, dyr, rec.ea1,
+                    rec.et1, rec.ea2, rec.et2);
+                it->y += itrf_details::parametric(rec.nmdn, dyr, rec.na1,
+                    rec.nt1, rec.na2, rec.nt2);
+                it->z += itrf_details::parametric(rec.umdn, dyr, rec.ua1,
+                    rec.ut1, rec.ua2, rec.ut2);
             } 
         }
     }
     return results.size(); // number of stations actually found
 }
 
+} // namespace ngpt
 
-int main()
-{
-    using mlsec = ngpt::milliseconds;
-
-    const char* ssc_file = "ITRF2008_GNSS.SSC.txt";
-    std::string reff;
-    float       reft;
-
-    std::ifstream fin (ssc_file);
-    reft = read_ssc_header(fin, reff);
-    std::cout<<"\nFrame is \""<<reff<<"\", time is "<<reft<<"\n";
-
-    int  t0_yr = (int)reft;
-    assert( (float)t0_yr - reft == 0e0 );
-    ngpt::datetime<mlsec> t0 {ngpt::year{t0_yr}, ngpt::day_of_year{1}, mlsec{0}};
-
-    std::vector<std::string> stations;
-    stations.emplace_back("NRMD 92701M005");
-    stations.emplace_back("COCO");
-    stations.emplace_back("REUN 97401M003");
-    stations.emplace_back("AZRY 49971M001");
-    stations.emplace_back("ANKR");
-
-    // ngpt::datetime<mlsec> t {ngpt::year{2017}, ngpt::day_of_year{143}, ngpt::hours{12},
-    // ngpt::minutes{40}, mlsec{365554}};
-    ngpt::datetime<mlsec> t {ngpt::year{2017}, ngpt::day_of_year{143}, mlsec{0}};
-    
-    std::vector<ssc_sta_crd> sta_crd;
-
-    auto j = ssc_extrapolate(fin, stations, t, t0, sta_crd);
-    printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
-    printf("\n---- --------- --------------- --------------- --------------- ------------------");
-    for (const auto& i : sta_crd) {
-        printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
-    }
-
-    j = compute_psd("ITRF2014-psd-gnss.dat", stations, t, sta_crd);
-    printf("\nNAME   DOMES         X(mm)          Y(mm)           Z(mm)        EPOCH");
-    printf("\n---- --------- --------------- --------------- --------------- ------------------");
-    for (const auto& i : sta_crd) {
-        printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
-    }
-
-    std::cout<<"\n";
-    return 0;
-}
+#endif
