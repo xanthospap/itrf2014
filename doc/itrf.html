@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>MathJax TeX Test Page</title>
+<!-- Copyright (c) 2010-2015 The MathJax Consortium -->
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {inlineMath: [["$","$"],["\\(","\\)"]]}
+  });
+</script>
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  TeX: { equationNumbers: { autoNumber: "AMS" } }
+});
+</script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+
+</head>
+<body>
+
+<h1>Γενικά</h1>
+<p>Το ITRF2014 (όπως και τα ITRF2005 και ITRF2008), χρησιμοποιεί ως δεδομένα (εισόδου) χρονοσειρές θέσεις σταθμών και
+Παραμέτρων Γήινου Προσανατολισμού (Earth Orientation Parameters (EOPs)), που έχουν προκύψει από τις τεχνικές
+VLBI, SLR, GNSS και DORIS. Δύο είναι τα σημεια καινοτομίας σε σχεη με τις παλαιότερες υλοποιήσεις <a href="#itrf14-webpage">[1]</a>:
+<ul>
+<li>Στις χρονοσειρές σταθμών με αρκετή χρονική έκταση, έγινε εκτίμηση ετήσιων και ημι-ετήσιων παραμέτρων</li>
+<li>Στις χρονοσειρές σταθμών GNSS όπου υπήρχαν μεγάλοι σεισμοί, εκτιμήθηκαν παράμετροι Μετα-Σεισμικής Παραμόρφωσης
+(Post-Seismic Deformation (PSD))· έπειτα αυτές εφαρμόστηκαν και στις υπόλοιπες τεχνικές, σε σημεία συνύπαρξης πλέον της μίας τεχνικής (colocation sites)</li>
+</ul>
+Κατά τα άλλα, το ITRF2014 προσφέρει τις κλασσικες/συνήθης παραμέτρους: θέση σταθμών σε μία εποχή αναφοράς (2010.0), ταχύτητες σταθμών και EOP.</p>
+
+<h1>Μετα-Σεισμική Παραμόρφωση (PSD)</h1>
+<p>Αν θέλουμε να υπολογίσουμε τη θεση ενός σταθμού, ο οποίος έχει επηρρεαστεί από μετα-σεισμική παραμόρφωση (η οποία δεν είναι γραμμική κίνηση), σε μία εποχή $t$, πρέπει να υπολογίσουμε το συνολικό άθροισμα των PSD έως την εποχή αυτή. Αυτό μπορεί να γίνει εξάγωντας τις παραμέτρους ενδιαφέροντος, από ένα εκ των αρχείων:
+<ul>
+<li><mark>ITRF2014-psd*.snx</mark> (αρχεία SINEX ανά τεχνική). Τα αρχεια αυτά περιέχουν όλες τις παραμέτρους για τον υπολογισμό των PSD, συμπεριλαμβανομένης και της πληροφορίας για τους πίνακες μεταβλητότητας-συμμεταβλητότητας (τα αρχεία βρίσκονται <a href="http://itrf.ign.fr/ITRF_solutions/2014/ITRF2014_files.php">εδώ</a>)</li>
+<li><mark>ITRF2014-psd*.dat</mark> (αρχεία ascii ανά τεχνική). Τα αρχεία αυτά περιέχουν όλη την απαραίτητη πληροφορία, πλήν των πινάκων μεταβλητότητας-συμμεταβλητότητας, άρα δεν μπορούμε να υπολογίσουμε τα τυπικά σφάλματα της θέσης (τα αρχεία βρίσκονται <a href="http://itrf.ign.fr/ITRF_solutions/2014/ITRF2014_files.php">εδώ</a>)</li>
+</ul></p>
+
+<h2>Μοντέλα PSD</h2>
+<p>Μετά από σεισμό, η θέση ενός σταθμού κατά τη διάρκεια της μετα-σεισμικής "πορείας" του $X_{PSD}$ σε μία εποχή $t$ μπορεί να γραφεί ως (<a href="#itrf14-psd-pdf">[2]</a>):
+\begin{equation}
+  \label{eq1}
+  X_{PSD}(t)=X(t_{0}) + \dot{X}(t-t_{0})+\delta X_{PSD}(t)
+\end{equation}
+όπου το $\delta X_{PSD}(t)$ είναι το άθροισμα των PSD έως τη εποχή $t$. Για κάθε συνιστώσα $L \epsilon \lbrace E,N,U \rbrace$ το $\delta L$ συμνολίζει τη συνολική παραμόρφωση την εποχή $t$ στο τοπικό σύστημα: 
+\begin{equation}
+  \label{eq2}
+  \delta L(t) = \sum_{i=1}^{n^l} A_{i}^{l} log(1+\dfrac{t-t_{i}^{l}}{{\tau}_i^l}) + \sum_{i=1}^{n^e} A_i^e (1-e^{-\dfrac{t-t_i^e}{{\tau}_i^e}})
+\end{equation}
+όπου:<br>
+$n^l$ ο αριθμός των λογαριθμικών όρων του μοντέλου,<br>
+$n^e$  ο αριθμός των εκθετικών όρων του μοντέλου,<br>
+$A_i^l$ το μέγεθος του $i$<sup>ού</sup> λογαριθμικού όρου,<br>
+$A_i^e$ το μέγεθος του $i$<sup>ού</sup> εκθετικού όρου,<br>
+${\tau}_i^l$ χρόνος χαλάρωσης (relaxation time) του $i$<sup>ού</sup> λογαριθμικού όρου,<br>
+${\tau}_i^e$ χρόνος χαλάρωσης (relaxation time) του $i$<sup>ού</sup> εκθετικού όρου,<br>
+$t_i^l$ και $t_i^e$ οι εποχές των σεισμών του $i$<sup>ού</sup> λογαριθμικού και εκθετικού όρου αντίστοιχα.</p>
+
+<p>
+\begin{equation}
+    \dfrac{\partial \delta L}{\partial A_{i}^{l}} = log(1+\dfrac{t-t_{i}^{l}}{{\tau}_i^l})
+\end{equation}
+
+\begin{equation}
+    \dfrac{\partial \delta L}{\partial {\tau}_i^l} = A_{i}^{l} \dfrac{\dfrac{-t1}{{\tau}_i^l}}{1+t1}, t1 = \dfrac{t-t_{i}^{l}}{{\tau}_i^l}
+\end{equation}
+
+\begin{equation}
+    \dfrac{\partial \delta L}{\partial A_i^e} = (1-e^{-\dfrac{t-t_i^e}{{\tau}_i^e}})
+\end{equation}
+
+\begin{equation}
+    \dfrac{\partial \delta L}{\partial {\tau}_i^l} = A_i^e e^{-t2} \dfrac{-t2}{{\tau}_i^e}, t2 = \dfrac{t-t_i^e}{{\tau}_i^e}
+\end{equation}
+</p>
+
+<h2>Υπολογισμός PSD</h2>
+<p>Για να υπολογίσουμε την παραμόρφωση (PSD) για ένα σταθμό, υπάρχουν τέσσερα μοντέλα (<a href="#parametric-f">[3]</a>):</p>
+<ul>
+<li><mark>#0 : PWL (Piece-Wise Linear Function)</mark> όπου η παραμόρφωση είναι πάντα $d = 0$ (δλδ $A^l = 0$ και $A^e = 0$ στην \ref{eq2})</li>
+<li><mark>#1 : Logarithmic Function</mark> όπου η παραμόρφωση είναι $d = A^l * log(1+\dfrac{t-t^l}{{\tau}^l})$ (δλδ $A^e = 0$ στην \ref{eq2})</li>
+<li><mark>#2 : Exponential Function</mark> όπου η παραμόρφωση είναι $d = A^e * (1-e^{-\dfrac{t-t^e}{{\tau}^e}})$ (δλδ $A^l = 0$ στην \ref{eq2})</li>
+<li><mark>#3 : Logarithmic + Exponential</mark> όπου η παραμόρφωση είναι $d = A^l * log(1+\dfrac{t-t^l}{{\tau}^l}) + A^e * (1-e^{-\dfrac{t-t^e}{{\tau}^e}})$</li>
+<li><mark>#4 : Two Exponential Functions</mark> όπου η παραμόρφωση είναι $d = A^l * (1-e^{-\dfrac{t-t^l}{{\tau}^l}}) + A^e * (1-e^{-\dfrac{t-t^e}{{\tau}^e}})$</li>
+</ul>
+
+<h1>Βιβλιογραφία</h1>
+<p id="itrf14-webpage"><a href="http://itrf.ign.fr/ITRF_solutions/2014/">[1]</a> ITRF2014 website</p>
+<p id="itrf14-psd-pdf"><a href="http://itrf.ign.fr/ITRF_solutions/2014/doc/ITRF2014-PSD-model-eqs-IGN.pdf">[2]</a> ITRF2014: Equations of post-seismic deformation models</p>
+<p id="parametric-f"><a href="ftp://itrf.ign.fr/pub/itrf/itrf2014/parametric.f">[3]</a> parametric.f (Fortran source code)</p>
+
+<p>
+When $a \ne 0$, there are two solutions to \(ax^2 + bx + c = 0\) and they are
+$$x = {-b \pm \sqrt{b^2-4ac} \over 2a}.$$
+</p>
+
+</body>
+</html>
