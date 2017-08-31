@@ -1,11 +1,9 @@
 #! /usr/bin/python
 
-import sys
-import datetime
-import math
-
-sys.path.append('.')
-from parametric import parametric
+import sys, datetime, math
+import numpy as np
+# sys.path.append('.')
+from itrftools import parametric
 
 def time_str2dt(time_str):
     """ Resolve a datetime string of type: YY:DDD:SSSSS to a python datetime
@@ -222,7 +220,6 @@ def xyz2llh(x, y, z, a=6378137e0, f=0.003352810681183637418):
     if z < 0.e0: phi = -phi;
     return phi, lon, h
 
-import numpy as np
 def enu2xyz(e, n, u, x, y, z):
     """ Transform a [e,n,u] vector (i.e.  local East, North, Up coordinates)
         to cartesian [X,Y,Z].
@@ -246,14 +243,14 @@ def enu2xyz(e, n, u, x, y, z):
     return [item for sublist in (R * enu).tolist() for item in sublist]
 
 ## Example usage
-if __name__ == "__main__":
-    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='ANKR')
-    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
-    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='20805M002')
-    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
-    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='11401M001')
-    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
-    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='COCO')
-    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
-    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='PDEL')
-    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+##if __name__ == "__main__":
+##    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='ANKR')
+##    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+##    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='20805M002')
+##    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+##    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), domes='11401M001')
+##    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+##    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='COCO')
+##    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))
+##    de, dn, du = compute_psd('ITRF2014-psd-gnss.dat', t=datetime.datetime.now(), station='PDEL')
+##    print('PSD correction in [e,n,u] = [{}, {}, {}]'.format(de, dn, du))

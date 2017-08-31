@@ -1,10 +1,9 @@
 #! /usr/bin/python
 
 from __future__ import print_function
-import sys
-import datetime
-sys.path.append('.')
-from compute_psd import time_str2dt
+import sys, datetime
+from itrftools.compute_psd import time_str2dt
+# sys.path.append('.')
 
 def read_header(fstream):
     """ Read the header of a .SSC file (i.e. a reference frame info file).

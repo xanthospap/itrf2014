@@ -3,8 +3,8 @@
 from __future__ import print_function
 import sys, datetime, argparse
 sys.path.append('.')
-from itrfssc import itrf_extrapolate, read_header
-from compute_psd import compute_psd, enu2xyz
+from itrftools.itrfssc import itrf_extrapolate, read_header
+from itrftools.compute_psd import compute_psd, enu2xyz
 
 ##  set the cmd parser
 parser = argparse.ArgumentParser(
