@@ -58,6 +58,25 @@ COCO 50127M001    14.51    24.50     0.00 2020-05-29 00:00:00
 NRMD               0.00     0.00     0.00 2020-05-29 00:00:00
 TONG 50902M001    43.78   -13.65     0.00 2020-05-29 00:00:00
 ```
+## extrapolate ITRF2014 coordinates
+Extrapolate coordinates in ITRF2014 at epoch 2020-05-29 for the given stations (some 
+specified by id others by domes). Note that the DOMES 50902M001 and the id TONG correspond to the same station,
+hence only one record is written for it. Also, there is no record for a station with 
+domes number 49971M001, hence no result is printed.
+```
+$> src/itrftool -s NRMD COCO TONG -m 97401M003 50902M001 49971M001  -y 2020 -d 150 -c ../data/ITRF2014_GNSS.SSC.txt -p ../data/ITRF2014-psd-gnss.dat
+
+Reference Frame: ITRF2014, Reference Epoch: 2010-01-01 00:00:00
+NAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH
+---- --------- --------------- --------------- --------------- ------------------
+COCO 50127M001    -741951.09602   6190961.71574  -1337767.36193 2020-05-29 00:00:00
+NRMD 92701M005   -5743538.11585   1380503.86427  -2397895.98837 2020-05-29 00:00:00
+REUN 97401M003    3364098.92612   4907944.67286  -2293466.68314 2020-05-29 00:00:00
+TONG 50902M001   -5930303.53647   -500148.80597  -2286366.30075 2020-05-29 00:00:00
+```
+
+> Minor format changes may be exhibeted between the C++ and the Python implementation; 
+> e.g. Python results are not sorted (alphabeticaly)
 
 # todo:
 -------------------------------------------------------------------------------

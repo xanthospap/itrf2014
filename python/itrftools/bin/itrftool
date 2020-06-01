@@ -142,7 +142,7 @@ if args.psd_file:
 
 # write results (depending on if we only want the PSDs or not)
 sta_printed=[]
-print('Reference Frame: {}, Reference Epoch {}'.format(frame, reft))
+print('Reference Frame: {}, Reference Epoch: {}'.format(frame, reft))
 if not args.psd_only:
   print('NAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH')
   print('---- --------- --------------- --------------- --------------- ------------------')

@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
       // add results to the original res1 vector (psd are in [n,e,u] and mm)
       for (auto& rec : res1) {
         if (auto rit=std::find_if(pres1.begin(), pres1.end(), 
-              [&ref=std::as_const(rec)](const auto& a){return a.site.compare(0, 4, ref.site, 0, 4);});
+              [&ref=std::as_const(rec)](const auto& a){return !(a.site.compare(0, 4, ref.site, 0, 4));});
             rit==pres1.end()) {
           std::cerr<<"\n[ERROR] Should not happen!";
           return 10;
@@ -167,7 +167,6 @@ int main(int argc, char* argv[])
           double lat, lon, hgt, dx, dy, dz;
           ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
           ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
-          std::cout<<"\n[DEBUG] adding psd values x:";
           rec.x+=dx;
           rec.y+=dy;
           rec.z+=dz;
@@ -179,7 +178,7 @@ int main(int argc, char* argv[])
       ngpt::compute_psd(psd_file.c_str(), its->second, t, pres2, true);
       for (auto& rec : res2) {
         if (auto rit=std::find_if(pres2.begin(), pres2.end(), 
-              [&ref=std::as_const(rec)](const auto& a){return a.site.compare(5, 9, ref.site, 5, 9);});
+              [&ref=std::as_const(rec)](const auto& a){return !(a.site.compare(5, 9, ref.site, 5, 9));});
             rit==pres2.end()) {
           std::cerr<<"\n[ERROR] Should not happen!";
           return 10;
@@ -187,7 +186,6 @@ int main(int argc, char* argv[])
           double lat, lon, hgt, dx, dy, dz;
           ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
           ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
-          std::cout<<"\n[DEBUG] adding psd values x:";
           rec.x+=dx;
           rec.y+=dy;
           rec.z+=dz;
@@ -197,6 +195,7 @@ int main(int argc, char* argv[])
   }
 
   auto results = merge_sort_unique(res1, res2);
+  std::cout<<"\nReference Frame: "<<ref_frame<<", Reference Epoch: "<<ngpt::strftime_ymd_hms(t0);
   printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
   printf("\n---- --------- --------------- --------------- --------------- ------------------");
   for (const auto& i : results) {
