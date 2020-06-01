@@ -110,7 +110,7 @@ if args.psd_only and not args.ssc_file:
     sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
     results.append([sta, dms, e, n, u])
   for d in args.domes:
-    sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=None, domes==d)
+    sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=None, domes=d)
     results.append([sta, dms, e, n, u])
   print('NAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH')
   print('---- --------- -------- -------- -------- ------------------')
