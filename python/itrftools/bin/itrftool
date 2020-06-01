@@ -2,6 +2,8 @@
 
 from __future__ import print_function
 import sys, datetime, argparse
+from itertools import groupby
+from operator import itemgetter
 sys.path.append('.')
 from itrftools.itrfssc import itrf_extrapolate, read_header
 from itrftools.compute_psd import compute_psd, enu2xyz
@@ -77,6 +79,13 @@ parser.add_argument('--psd-only',
   default  = False
 )
 
+def merge_sort_unique(res1, res2=None):
+  if res2 != None: res1 += res2
+  sl = sorted(res1, key= lambda x: x[0])
+  ul = []
+  [ul.append(x) for x in sl if x[0] not in map(itemgetter(0), ul)]
+  return ul
+
 # parse cmd
 args = parser.parse_args()
 
@@ -101,11 +110,11 @@ if args.psd_only and not args.ssc_file:
     sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
     results.append([sta, dms, e, n, u])
   for d in args.domes:
-    sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
+    sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=None, domes==d)
     results.append([sta, dms, e, n, u])
   print('NAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH')
   print('---- --------- -------- -------- -------- ------------------')
-  for item in results:
+  for item in merge_sort_unique(results):
     print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5}'.format(*(item+[t])))
   sys.exit(0)
 

@@ -395,13 +395,10 @@ template<typename S>
   std::string site_name;
   for (const auto& i : stations) {
     if (!use_domes) {
-      std::cout<<"\n[DEBUG] use_domes="<<use_domes<<" name=\""<<i.substr(0, 4) + "          "<<"\"";
       site_name = i.substr(0, 4) + "          ";
     } else {
-      std::cout<<"\n[DEBUG] use_domes="<<use_domes<<" name=\""<<"     " + i.substr(0, 9)<<"\"";
       site_name = "     " + i.substr(0, 9);
     }
-    std::cout<<"\n[DEBUG] Inserting station: \""<<site_name<<"\"";
     results.emplace_back(site_name, 0e0, 0e0, 0e0);
   }
 
