@@ -1,5 +1,7 @@
 #include <cstring>
 #include <map>
+#include "ggeodesy/geodesy.hpp"
+#include "ggeodesy/car2ell.hpp"
 #include "itrf_tools.hpp"
 
 int
@@ -10,7 +12,7 @@ parse_cmd(int argc, char* argv[], std::map<char, std::vector<std::string>>& cmd_
   cmd_map['n'] = std::vector<std::string>{"0"}; //< psd only
 
   for (int i=1; i<argc; ) {
-    if (++dummy>100) return 50;
+    if (++dummy>1000) return 50; /* just to be safe ... */
     if (!std::strcmp(argv[i], "-s") || !std::strcmp(argv[i], "--stations")) {
       if (argc<=i+1) return 1;
       ++i; cmd_map['s'] = std::vector<std::string>();
@@ -52,7 +54,6 @@ parse_cmd(int argc, char* argv[], std::map<char, std::vector<std::string>>& cmd_
       ++i;
     }
   }
-  std::cout<<"\nRead cmd's";
 
   // make sure the user didn't mess up the args ...
   auto mend = cmd_map.end();
@@ -69,7 +70,6 @@ parse_cmd(int argc, char* argv[], std::map<char, std::vector<std::string>>& cmd_
     std::cerr<<"\n[ERROR] Need to provide a year and a day_of_year";
     return 1;
   }
-  std::cout<<"\nReturning to main";
   return 0;
 }
 
@@ -98,26 +98,25 @@ int main(int argc, char* argv[])
   std::map<char, std::vector<std::string>> cmd_map;
   if (parse_cmd(argc, argv, cmd_map)) return 10;
 
+  // epoch t to extrapolate at
   auto mend = cmd_map.end();
   auto it=cmd_map.find('y'); int year=std::stoi(it->second[0]);
        it=cmd_map.find('d'); int doy =std::stoi(it->second[0]);
   ngpt::datetime<mlsec> t (ngpt::year{year}, ngpt::day_of_year{doy}, mlsec{0});
 
+  // vectors to store results
+  std::vector<ngpt::sta_crd> res1, res2;
+  
   // easy case: We have a PSD file but no SSC; Only compute PSD in [e,n,u]
   it=cmd_map.find('n');
   if (it->second[0]=="1") {
-    int numsta1(0), numsta2(0);
-    std::vector<ngpt::sta_crd> res1, res2;
     std::string psd_file = cmd_map['p'][0];
     if (auto its=cmd_map.find('s'); its!=mend) {
-      numsta1 = compute_psd(psd_file.c_str(), its->second, t, res1, false);
+      ngpt::compute_psd(psd_file.c_str(), its->second, t, res1, false);
     }
     if (auto its=cmd_map.find('m'); its!=mend) {
-      numsta2 = compute_psd(psd_file.c_str(), its->second, t, res2, true);
+      ngpt::compute_psd(psd_file.c_str(), its->second, t, res2, true);
     }
-    /*
-    results.insert(results.end(), std::make_move_iterator(results_d.begin()),
-      std::make_move_iterator(results_d.end()));*/
     auto results = merge_sort_unique(res1, res2);
     printf("\nNAME   DOMES         X(mm)          Y(mm)           Z(mm)        EPOCH");
     printf("\n---- --------- --------------- --------------- --------------- ------------------");
@@ -125,9 +124,87 @@ int main(int argc, char* argv[])
       printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
     }
     std::cout<<"\n";
-    return numsta1+numsta2-(int)results.size();
+    return 0;
   }
 
+  // open the SSC file and extract reference epoch and frame
+  std::string ref_frame;
+  float refyear; 
+  std::ifstream fin (cmd_map['c'][0]);
+  if ((refyear=ngpt::itrf_details::read_ssc_header(fin, ref_frame))<0e0) {
+    std::cerr<<"\n[ERROR] Failed reading SSC header for \""<<cmd_map['c'][0]<<"\"";
+    return -1;
+  }
+
+  // reference epoch (from float) as datetime instance
+  int t0_yr = (int)refyear;
+  assert((float)t0_yr-refyear == 0e0);
+  ngpt::datetime<mlsec> t0 (ngpt::year(t0_yr), ngpt::day_of_year(1), mlsec(0));
+
+  // extrapolate coordinates to epoch t using the ssc file
+  if (auto its=cmd_map.find('s'); its!=mend) {
+    ngpt::ssc_extrapolate(fin, its->second, t, t0, res1, false);
+  }
+  if (auto its=cmd_map.find('m'); its!=mend) {
+    ngpt::ssc_extrapolate(fin, its->second, t, t0, res2, true);
+  }
+
+  // do we need to add the PSD's ?
+  if (it=cmd_map.find('p'); it!=mend) {
+    std::vector<ngpt::sta_crd> pres1, pres2;
+    std::string psd_file = it->second[0];
+    // compute the psd values for the station-id vector  ....
+    if (auto its=cmd_map.find('s'); its!=mend) {
+      ngpt::compute_psd(psd_file.c_str(), its->second, t, pres1, false);
+      // add results to the original res1 vector (psd are in [n,e,u] and mm)
+      for (auto& rec : res1) {
+        if (auto rit=std::find_if(pres1.begin(), pres1.end(), 
+              [&ref=std::as_const(rec)](const auto& a){return a.site.compare(0, 4, ref.site, 0, 4);});
+            rit==pres1.end()) {
+          std::cerr<<"\n[ERROR] Should not happen!";
+          return 10;
+        } else {
+          double lat, lon, hgt, dx, dy, dz;
+          ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
+          ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
+          std::cout<<"\n[DEBUG] adding psd values x:";
+          rec.x+=dx;
+          rec.y+=dy;
+          rec.z+=dz;
+        }
+      }
+    }
+    // compute the psd values for the station-domes vector  ....
+    if (auto its=cmd_map.find('m'); its!=mend) {
+      ngpt::compute_psd(psd_file.c_str(), its->second, t, pres2, true);
+      for (auto& rec : res2) {
+        if (auto rit=std::find_if(pres2.begin(), pres2.end(), 
+              [&ref=std::as_const(rec)](const auto& a){return a.site.compare(5, 9, ref.site, 5, 9);});
+            rit==pres2.end()) {
+          std::cerr<<"\n[ERROR] Should not happen!";
+          return 10;
+        } else {
+          double lat, lon, hgt, dx, dy, dz;
+          ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
+          ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
+          std::cout<<"\n[DEBUG] adding psd values x:";
+          rec.x+=dx;
+          rec.y+=dy;
+          rec.z+=dz;
+        }
+      }
+    }
+  }
+
+  auto results = merge_sort_unique(res1, res2);
+  printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
+  printf("\n---- --------- --------------- --------------- --------------- ------------------");
+  for (const auto& i : results) {
+    printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
+  }
+
+  std::cout<<"\n";
+  return 0;
 
   /*
   using mlsec = ngpt::milliseconds;

@@ -141,15 +141,19 @@ if args.psd_file:
     #print('#New coordinates of station {} {} {} {}'.format(item['station'], item['x']+dx, item['y']+dy, item['z']+dz))
 
 # write results (depending on if we only want the PSDs or not)
+sta_printed=[]
 print('Reference Frame: {}, Reference Epoch {}'.format(frame, reft))
 if not args.psd_only:
   print('NAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH')
   print('---- --------- --------------- --------------- --------------- ------------------')
-  for idx, item in enumerate(results):
+  for item in results:
+    if item['station'] not in sta_printed:
       print('{0} {1} {2:15.5f} {3:15.5f} {4:15.5f} {5}'.format(item['station'], item['domes'], item['x'], item['y'], item['z'], t))
+      sta_printed.append(item['station'])
 else:
   print('NAME   DOMES   East(mm) North(mm) Up(mm)   X(mm)    Y(mm)     Z(mm)      EPOCH')
   print('---- --------- -------- -------- -------- -------- -------- -------- ------------------')
-  for idx, item in enumerate(psd_info):
+  for item in results:
+    if item['station'] not in sta_printed:
       print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5:8.2f} {6:8.2f} {7:8.2f} {8}'.format(item['sta'], item['dms'], item['e'], item['n'], item['u'], item['dx'], item['dy'], item['dz'], t))
 sys.exit(0)

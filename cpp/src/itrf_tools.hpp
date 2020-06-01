@@ -10,7 +10,6 @@
 #ifdef DEBUG
 #include <iostream>
 #endif
-
 #include "ggdatetime/dtcalendar.hpp"
 #include "ggdatetime/datetime_write.hpp"
 
@@ -361,6 +360,12 @@ template<typename S>
 
   itrf_details::ssc_record<S> record;
   std::vector<std::string> sta {stations};
+  //  warning! if domes are provided, then the strings in the stations vector are
+  //+ e.g. '97401M003', '92701M003', etc ..... Now, we need to transform these to
+  //+ ID+' '+DOMES, i.e. add 5* whitespaces at the begining
+  if (use_domes) std::transform(sta.begin(), sta.end(), sta.begin(), 
+    [](std::string& s){return ("     "+s);});
+  
   auto it = sta.begin();
   std::string site;
   while (!itrf_details::read_next_record<S>(fin, record) && sta.size()) {
