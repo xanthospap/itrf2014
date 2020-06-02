@@ -1,8 +1,18 @@
 #include <cstring>
 #include <map>
+#include <array>
 #include "ggeodesy/geodesy.hpp"
 #include "ggeodesy/car2ell.hpp"
 #include "itrf_tools.hpp"
+
+struct psd_delta {
+  std::string site;
+  std::array<double,6> dr={0e0}; // de, dn, du, dx, dy, dz
+  psd_delta(std::string str, std::array<double,6>&& a) noexcept 
+  : site(std::move(str)),
+    dr(std::move(a))
+  {};
+};
 
 int
 parse_cmd(int argc, char* argv[], std::map<char, std::vector<std::string>>& cmd_map)
@@ -151,6 +161,7 @@ int main(int argc, char* argv[])
   auto results = merge_sort_unique(res1, res2);
 
   // do we need to add the PSD's ?
+  std::vector<psd_delta> psd_info;
   if (it=cmd_map.find('p'); it!=mend) {
     std::vector<ngpt::sta_crd> pres;
     std::string psd_file = it->second[0];
@@ -168,6 +179,9 @@ int main(int argc, char* argv[])
           rec.x+=dx;
           rec.y+=dy;
           rec.z+=dz;
+          if (cmd_map['n'][0]=="1") {
+            psd_info.emplace_back(rec.site, std::array<double,6>{rit->x, rit->y, rit->z, dx*1e3, dy*1e3, dz*1e3});
+          }
         }/* else {
           std::cout<<"\n[DEBUG] No PSD record for station \""<<rec.site<<"\"";
         }*/
@@ -175,12 +189,21 @@ int main(int argc, char* argv[])
     }
   }
 
-  // auto results = merge_sort_unique(res1, res2);
   std::cout<<"\nReference Frame: "<<ref_frame<<", Reference Epoch: "<<ngpt::strftime_ymd_hms(t0);
-  printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
-  printf("\n---- --------- --------------- --------------- --------------- ------------------");
-  for (const auto& i : results) {
-    printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
+  if (cmd_map['n'][0]!="1") {
+    printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
+    printf("\n---- --------- --------------- --------------- --------------- ------------------");
+    for (const auto& i : results) {
+      printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
+    }
+  } else {
+    printf("\nNAME   DOMES   East(mm) North(mm) Up(mm)   X(mm)    Y(mm)     Z(mm)      EPOCH");
+    printf("\n---- --------- -------- -------- -------- -------- -------- -------- ------------------");
+    for (const auto& i : psd_info) {
+      printf("\n%s",i.site.c_str());
+      for (int k=0; k<6; ++k) printf("%+8.2f ",i.dr[k]);
+      ngpt::strftime_ymd_hms(t).c_str();
+    }
   }
 
   std::cout<<"\n";

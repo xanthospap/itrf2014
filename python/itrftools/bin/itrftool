@@ -108,10 +108,10 @@ results = []
 if args.psd_only and not args.ssc_file:
   for s in args.stations:
     sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=s)
-    results.append([sta, dms, e, n, u])
+    if [e,n,u]!=[0]*3 : results.append([sta, dms, e, n, u])
   for d in args.domes:
     sta, dms, e, n, u = compute_psd(args.psd_file, t=t, station=None, domes=d)
-    results.append([sta, dms, e, n, u])
+    if [e,n,u]!=[0]*3 : results.append([sta, dms, e, n, u])
   print('NAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH')
   print('---- --------- -------- -------- -------- ------------------')
   for item in merge_sort_unique(results):
