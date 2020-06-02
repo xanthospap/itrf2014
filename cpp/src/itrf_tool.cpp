@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
   
   // easy case: We have a PSD file but no SSC; Only compute PSD in [e,n,u]
   it=cmd_map.find('n');
-  if (it->second[0]=="1") {
+  if (auto tit=cmd_map.find('c'); it->second[0]=="1" && tit==mend) {
     std::string psd_file = cmd_map['p'][0];
     if (auto its=cmd_map.find('s'); its!=mend) {
       ngpt::compute_psd(psd_file.c_str(), its->second, t, res1, false);
@@ -118,10 +118,10 @@ int main(int argc, char* argv[])
       ngpt::compute_psd(psd_file.c_str(), its->second, t, res2, true);
     }
     auto results = merge_sort_unique(res1, res2);
-    printf("\nNAME   DOMES         X(mm)          Y(mm)           Z(mm)        EPOCH");
-    printf("\n---- --------- --------------- --------------- --------------- ------------------");
+    printf("\nNAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH");
+    printf("\n---- --------- -------- -------- -------- ------------------");
     for (const auto& i : results) {
-      printf("\n%s %15.5f %15.5f %15.5f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
+      printf("\n%s %+8.2f %+8.2f %+8.2f %s", i.site.c_str(), i.x, i.y, i.z, ngpt::strftime_ymd_hms(t).c_str());
     }
     std::cout<<"\n";
     return 0;
@@ -148,53 +148,34 @@ int main(int argc, char* argv[])
   if (auto its=cmd_map.find('m'); its!=mend) {
     ngpt::ssc_extrapolate(fin, its->second, t, t0, res2, true);
   }
+  auto results = merge_sort_unique(res1, res2);
 
   // do we need to add the PSD's ?
   if (it=cmd_map.find('p'); it!=mend) {
-    std::vector<ngpt::sta_crd> pres1, pres2;
+    std::vector<ngpt::sta_crd> pres;
     std::string psd_file = it->second[0];
     // compute the psd values for the station-id vector  ....
     if (auto its=cmd_map.find('s'); its!=mend) {
-      ngpt::compute_psd(psd_file.c_str(), its->second, t, pres1, false);
-      // add results to the original res1 vector (psd are in [n,e,u] and mm)
-      for (auto& rec : res1) {
-        if (auto rit=std::find_if(pres1.begin(), pres1.end(), 
+      ngpt::compute_psd(psd_file.c_str(), its->second, t, pres, false);
+      // add results to the original results vector (psd are in [n,e,u] and mm)
+      for (auto& rec : results) {
+        if (auto rit=std::find_if(pres.begin(), pres.end(), 
               [&ref=std::as_const(rec)](const auto& a){return !(a.site.compare(0, 4, ref.site, 0, 4));});
-            rit==pres1.end()) {
-          std::cerr<<"\n[ERROR] Should not happen!";
-          return 10;
-        } else {
+            rit!=pres.end()) {
           double lat, lon, hgt, dx, dy, dz;
           ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
           ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
           rec.x+=dx;
           rec.y+=dy;
           rec.z+=dz;
-        }
-      }
-    }
-    // compute the psd values for the station-domes vector  ....
-    if (auto its=cmd_map.find('m'); its!=mend) {
-      ngpt::compute_psd(psd_file.c_str(), its->second, t, pres2, true);
-      for (auto& rec : res2) {
-        if (auto rit=std::find_if(pres2.begin(), pres2.end(), 
-              [&ref=std::as_const(rec)](const auto& a){return !(a.site.compare(5, 9, ref.site, 5, 9));});
-            rit==pres2.end()) {
-          std::cerr<<"\n[ERROR] Should not happen!";
-          return 10;
-        } else {
-          double lat, lon, hgt, dx, dy, dz;
-          ngpt::car2ell<ngpt::ellipsoid::grs80>(rec.x, rec.y, rec.z, lat, lon, hgt);
-          ngpt::top2car(rit->y*1e-3, rit->x*1e-3, rit->z*1e-3, lat, lon, dx, dy, dz);
-          rec.x+=dx;
-          rec.y+=dy;
-          rec.z+=dz;
-        }
+        }/* else {
+          std::cout<<"\n[DEBUG] No PSD record for station \""<<rec.site<<"\"";
+        }*/
       }
     }
   }
 
-  auto results = merge_sort_unique(res1, res2);
+  // auto results = merge_sort_unique(res1, res2);
   std::cout<<"\nReference Frame: "<<ref_frame<<", Reference Epoch: "<<ngpt::strftime_ymd_hms(t0);
   printf("\nNAME   DOMES         X(m)           Y(m)            Z(m)        EPOCH");
   printf("\n---- --------- --------------- --------------- --------------- ------------------");

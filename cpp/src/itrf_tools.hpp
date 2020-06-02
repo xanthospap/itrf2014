@@ -396,39 +396,46 @@ template<typename S>
   std::ifstream fin (psd_file);
   if (!fin.is_open()) return -1;
 
-  // form the site names as 4CHAR_ID + ' ' + DOMES
-  std::string site_name;
-  for (const auto& i : stations) {
-    if (!use_domes) {
-      site_name = i.substr(0, 4) + "          ";
-    } else {
-      site_name = "     " + i.substr(0, 9);
-    }
-    results.emplace_back(site_name, 0e0, 0e0, 0e0);
-  }
+  std::vector<std::string> sta(stations);
+  //  warning! if domes are provided, then the strings in the stations vector are
+  //+ e.g. '97401M003', '92701M003', etc ..... Now, we need to transform these to
+  //+ ID+' '+DOMES, i.e. add 5* whitespaces at the begining
+  if (use_domes) std::transform(sta.begin(), sta.end(), sta.begin(), 
+    [](std::string& s){return ("     "+s);});
 
   std::function<int(const std::string&, const std::string&)> cmp
         = itrf_details::compare_sta_id;
   if (use_domes) cmp = itrf_details::compare_sta_domes;
 
   itrf_details::psd_record<S> rec;
-  auto it   = results.begin();
-  auto rend = results.end();
+  auto send = sta.end();
+  auto rit=results.begin();
   std::string site;
   double dyr;
   while (!itrf_details::read_next_record_psd<S>(fin, rec)) {
     site = rec.site;
-    if ((it = std::find_if(results.begin(), rend,
-          [=](const sta_crd& record){return !cmp(site, record.site);})) != rend ) {
-      it->site = rec.site;
+    // is the station read of interest?
+    if (auto it=std::find_if(sta.begin(), sta.end(),
+          [=](const auto& str){return !cmp(site, str);}); it!=send) {
+      site = rec.site;
+      // do we already have it in the results vector?
+      if (rit=std::find_if(results.begin(), results.end(), 
+            [&site=std::as_const(rec.site)](const sta_crd& a){return site==a.site;});
+          rit!=results.end()) {
+        ;
+      } else {
+        results.emplace_back(site, 0e0, 0e0, 0e0);
+        rit=results.end()-1;
+      }
+      // compute/append PSD
       if (t>=rec.teq) {
-        ngpt::datetime_interval<S> dt {ngpt::delta_date(t, rec.teq)};
+        ngpt::datetime_interval<S> dt(ngpt::delta_date(t, rec.teq));
         dyr = dt.as_mjd() / 365.25;
-        it->x += itrf_details::parametric(rec.emdn, dyr, rec.ea1,
+        rit->x += itrf_details::parametric(rec.emdn, dyr, rec.ea1,
             rec.et1, rec.ea2, rec.et2);
-        it->y += itrf_details::parametric(rec.nmdn, dyr, rec.na1,
+        rit->y += itrf_details::parametric(rec.nmdn, dyr, rec.na1,
             rec.nt1, rec.na2, rec.nt2);
-        it->z += itrf_details::parametric(rec.umdn, dyr, rec.ua1,
+        rit->z += itrf_details::parametric(rec.umdn, dyr, rec.ua1,
             rec.ut1, rec.ua2, rec.ut2);
       } 
     }

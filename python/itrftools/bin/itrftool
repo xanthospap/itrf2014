@@ -153,7 +153,7 @@ if not args.psd_only:
 else:
   print('NAME   DOMES   East(mm) North(mm) Up(mm)   X(mm)    Y(mm)     Z(mm)      EPOCH')
   print('---- --------- -------- -------- -------- -------- -------- -------- ------------------')
-  for item in results:
-    if item['station'] not in sta_printed:
+  for item in psd_info:
+    if item['sta'] not in sta_printed:
       print('{0} {1} {2:8.2f} {3:8.2f} {4:8.2f} {5:8.2f} {6:8.2f} {7:8.2f} {8}'.format(item['sta'], item['dms'], item['e'], item['n'], item['u'], item['dx'], item['dy'], item['dz'], t))
 sys.exit(0)
