@@ -1,46 +1,30 @@
-# itrftools
--------------------------------------------------------------------------------
-itrftools is a collection of Python modules/programs to assist the processing and
-manipulation of ITRF14-related files; ease computation and extrapolation of
-station coordinates.
+# ITRF 2014
 
-The package requires numpy (http://www.numpy.org/) and should work both for
-Python 2.x and Python 3.x. No other requirement exists.
+[ITRF2014](http://itrf.ign.fr/ITRF_solutions/2014/) is the new realization of the International Terrestrial Reference System.
+ITRF2014 (as well as previous releases) are published by the [International Earth Rotation and Reference Systems Service](http://www.iers.org/)
+ITRF2014 is the new realization of the International Terrestrial Reference System.
 
-The package is acompanied by a (Python) script under /bin/itrftool, which gets
-automatically installed (during the ppackage installation process) and can
-perform:
+In contrast to older realizations of the frame, ITRF 2014 introduces Post-Seismic Deformation ([PSD](http://itrf.ign.fr/ITRF_solutions/2014/psd.php)) models, thus a user who wants to compute the position of a station affected by 
+post-seismic deformations at an epoch during the relaxation (non-linear) period should take these into account. More on the post-seismic deformation (PSD) models can be
+found on the ITRF [webpage](http://itrf.ign.fr/ITRF_solutions/2014/psd.php) and relevant [literature](http://itrf.ign.fr/ITRF_solutions/2014/doc/ITRF2014-PSD-model-eqs-IGN.pdf).
 
-* Coordinate extrapolation to a reference epoch using a SSC file, optionaly
-      including a PSD file (for ITRF2014)
 
-* PSD computation (per component)
+# itrftool
 
-Stations to be considered can be identified either by their 4-char ID or via
-their DOMES. See the script's help message for more info.
+itrftool is a program to compute station coordinates in the ITRF2014 Reference Frame for any given epoch. It performs two 
+basic tasks:
 
-To install the package and the executable, run (in the folder `python/itrftools`)
-`$> python setup.py install`
-After that, you should have an executable named `itrftools` installed
+  * read in a [ssc](http://itrf.ign.fr/ITRF_solutions/2014/more_ITRF2014.php) format file and extrapolate 
+  coordinates to any given time (*ssc files are published by ITRF and hold records of station coordinates at
+  a reference epoch*)
 
-To make use of the package and/or script, you will need the relevant files
-(e.g. PSD and SSC files). All of these are publicly available at the ITRF
-website (http://itrf.ensg.ign.fr/) and are **NOT** included within the package.
+  * read in a [psd](http://itrf.ign.fr/ITRF_solutions/2014/ITRF2014_files.php) format file and compute (total) PSD 
+  for any station at any given epoch (*ssc files are published by ITRF; the program uses the ones in in CATREF internal 
+  format*)
 
-# update:
--------------------------------------------------------------------------------
-There is now a C++ version of the project availabe under the folder `cpp`. To install 
-it (inside the `cpp` folder):
-```
-./configure
-make
-```
-and you should have the `src/itrftool` executable.
 
-# usage
--------------------------------------------------------------------------------
+# examples
 
-## compute PSD values
 Compute PSD values for a given date and a list of stations; note that the stations 
 can be specified either by name (aka their 4-char id) or by DOMES number (or both).
 Here we compute the PSD values for stations with id's NRMD, COCO and TONG and stations with 
@@ -49,6 +33,7 @@ DOME's 97401M003, 50902M001 and 49971M001 for day of year 150 of year 2020 (that
 hence only one record is written for it. Information on computed the PSD values are
 extracted from the file `../data/ITRF2014-psd-gnss.dat`. Stations with PSD values of 0e0 
 do not have corresponding records in the input PSD information file.
+
 ```
 $> itrftool -s NRMD COCO TONG -m 97401M003 50902M001 49971M001 -p ../data/ITRF2014-psd-gnss.dat -y 2020 -d 150 --psd-only
 NAME   DOMES   East(mm) North(mm) Up(mm)        EPOCH
@@ -58,11 +43,12 @@ COCO 50127M001    14.51    24.50     0.00 2020-05-29 00:00:00
 NRMD               0.00     0.00     0.00 2020-05-29 00:00:00
 TONG 50902M001    43.78   -13.65     0.00 2020-05-29 00:00:00
 ```
-## extrapolate ITRF2014 coordinates
+
 Extrapolate coordinates in ITRF2014 at epoch 2020-05-29 for the given stations (some 
 specified by id others by domes). Note that the DOMES 50902M001 and the id TONG correspond to the same station,
 hence only one record is written for it. Also, there is no record for a station with 
 domes number 49971M001, hence no result is printed.
+
 ```
 $> src/itrftool -s NRMD COCO TONG -m 97401M003 50902M001 49971M001  -y 2020 -d 150 -c ../data/ITRF2014_GNSS.SSC.txt -p ../data/ITRF2014-psd-gnss.dat
 
@@ -78,11 +64,52 @@ TONG 50902M001   -5930303.53647   -500148.80597  -2286366.30075 2020-05-29 00:00
 > Minor format changes may be exhibeted between the C++ and the Python implementation; 
 > e.g. Python results are not sorted (alphabeticaly)
 
+# the program
+
+The repository actually includes two independent implementations of the program:
+  
+  * a Python implementetation, found in `python` directory, and
+  * a C++ implementation, found in the `cpp` folder
+
+both do the same thing! If you are only interested in running the program install any of the two. 
+If you plan on using the functions/headers/modules install the one that fits your needs.
+
+## python implementation
+
+The package requires [numpy](http://www.numpy.org/) and should work both for
+Python 2.x and Python 3.x. No other requirement exists.
+
+The package is acompanied by a (Python) script under `python/itrftools/bin/itrftool`, which gets
+automatically installed (during the ppackage installation process)
+
+To install the package and the executable, run (in the folder `python/itrftools`)
+`$> python setup.py install`
+After that, you should have an executable named `itrftools` installed. After installation users 
+can also make use of the modules in `itrftools` (see `python/itrftools/itrftools`).
+
+## c++ implementation
+
+The c++ implementation can be found under the `cpp` folder. The installation requires the 
+[ggdatetime](https://github.com/xanthospap/ggdatetime.git) library to work (for reading and manipulating dates).
+To install, just use the usual procedure:
+
+```
+$> configure
+$> make
+$> make install
+```
+
+## data files
+
+To make use of the package and/or script, you will need the relevant files
+(e.g. PSD and SSC files). All of these are publicly available at the ITRF
+website (http://itrf.ensg.ign.fr/) and are **NOT** included within the package.
+
 # todo:
--------------------------------------------------------------------------------
+
 Compute standard deviation values for the extrapolated station coordinates.
 
 # bug and comments
--------------------------------------------------------------------------------
+
 Please send any bugs, feedback, suggestions, comments, etc ..... to
 xanthos@mail.ntua.gr or dganastasiou@gmail.com
