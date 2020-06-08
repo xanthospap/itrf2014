@@ -61,6 +61,8 @@ REUN 97401M003    3364098.92612   4907944.67286  -2293466.68314 2020-05-29 00:00
 TONG 50902M001   -5930303.53647   -500148.80597  -2286366.30075 2020-05-29 00:00:00
 ```
 
+
+
 > Minor format changes may be exhibeted between the C++ and the Python implementation; 
 > e.g. Python results are not sorted (alphabeticaly)
 
@@ -90,13 +92,23 @@ can also make use of the modules in `itrftools` (see `python/itrftools/itrftools
 ## c++ implementation
 
 The c++ implementation can be found under the `cpp` folder. The installation requires the 
-[ggdatetime](https://github.com/xanthospap/ggdatetime.git) library to work (for reading and manipulating dates).
-To install, just use the usual procedure:
+[ggdatetime](https://github.com/xanthospap/ggdatetime.git) library to work (for reading and manipulating dates). 
+It also needs the [ggeodesy](https://github.com/xanthospap/ggeodesy.git) library to perform geodetic 
+calculations. To install, either use autotools:
+
+```
+$> cd cpp
+$> autoreconf -if
+$> ./configure
+$> make
+```
+
+or (**the easier way**), uncompress the tarball `cpp/itrf_tools-1.00.tar.gz` and 
+inside the uncompressed folder, do:
 
 ```
 $> configure
 $> make
-$> make install
 ```
 
 ## data files

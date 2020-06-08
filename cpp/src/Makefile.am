@@ -2,8 +2,6 @@ bin_PROGRAMS = itrftool
 
 itrftool_CXXFLAGS = \
 	-std=c++17 \
-	-g \
-	-pg \
 	-Wall \
 	-Wextra \
 	-Werror \
@@ -11,9 +9,9 @@ itrftool_CXXFLAGS = \
 	-W \
 	-Wshadow \
 	-Winline \
-	-Wdisabled-optimization \
 	-DDEBUG \
 	-Wno-error=inline \
+        -O2 \
 	-I$(top_srcdir)/src
 
 itrftool_SOURCES = \
